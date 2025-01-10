@@ -12,6 +12,7 @@ import {
   ValidationError, 
   BadRequestError
 } from '../utils/errors';
+import { GamificationService } from './gamification.service';
 
 interface ExecutionWithPlan extends Prisma.test_executions {
   test_plans: Prisma.test_plans;
@@ -23,6 +24,12 @@ interface TestData {
 }
 
 export class TestExecutionService {
+  private gamificationService: GamificationService;
+
+  constructor() {
+    this.gamificationService = new GamificationService();
+  }
+
   // Utility function to safely convert to BigInt
   private safeBigInt(value: bigint | string | undefined, defaultValue: bigint = BigInt(0)): bigint {
     if (value === undefined) {
@@ -192,6 +199,38 @@ export class TestExecutionService {
       updatedResponse: updatedResponses[questionIndex]
     });
 
+    // Update subject mastery and log activity
+    const testPlan = await prisma.test_plans.findUnique({
+      where: { test_plan_id: execution.test_plan_id },
+      include: {
+        test_templates: {
+          include: {
+            exam_boards: true
+          }
+        }
+      }
+    });
+
+    if (testPlan?.test_templates?.exam_boards?.board_id) {
+      await this.gamificationService.updateSubjectMastery(
+        safeUserId,
+        testPlan.test_templates.exam_boards.board_id,
+        updatedResponses[questionIndex].is_correct
+      );
+
+      // Log the activity
+      await this.gamificationService.logActivity(
+        safeUserId,
+        'ANSWER_SUBMISSION',
+        updatedResponses[questionIndex].is_correct ? 10 : 0,
+        {
+          questionId: safeQuestionId.toString(),
+          correct: updatedResponses[questionIndex].is_correct,
+          testPlanId: execution.test_plan_id.toString()
+        }
+      );
+    }
+
     // Update the test data with the new responses
     const updatedTestData = {
       ...testData,
@@ -308,6 +347,25 @@ export class TestExecutionService {
       const scoreResult = await this.calculateAndUpdateTestScore(
         safeExecutionId, 
         safeUserId
+      );
+
+      // Award XP based on score
+      const xpEarned = Math.floor(scoreResult.execution.score * 10); // 10 XP per score point
+      await this.gamificationService.addXP(safeUserId, xpEarned, 'test_completion');
+
+      // Update streak
+      await this.gamificationService.updateStreak(safeUserId);
+
+      // Log test completion activity
+      await this.gamificationService.logActivity(
+        safeUserId,
+        'TEST_COMPLETION',
+        xpEarned,
+        {
+          testPlanId: existingExecution.test_plan_id.toString(),
+          score: scoreResult.execution.score,
+          totalQuestions: JSON.parse(scoreResult.execution.test_data).questions.length
+        }
       );
 
       // Update the execution
@@ -461,37 +519,39 @@ export class TestExecutionService {
         status: 'NOT_STARTED',
         test_data: JSON.stringify({
           questions: selectedQuestions.map(q => ({
-            question_id: q.question_id,
-            subtopic_id: q.subtopic_id,
+            question_id: q.question_id.toString(),
             question_text: q.question_text,
-            options: q.options,
-            difficulty_level: q.difficulty_level,
+            question_text_plain: q.question_text_plain,
+            options: JSON.parse(q.options),
             correct_answer: q.correct_answer,
             correct_answer_plain: q.correct_answer_plain,
-            is_katex: q.is_katex || false,
+            solution: q.solution,
+            solution_plain: q.solution_plain,
+            difficulty_level: q.difficulty_level
           })),
           responses: selectedQuestions.map(q => ({
-            question_id: q.question_id,
+            question_id: q.question_id.toString(),
             student_answer: null,
             is_correct: null,
-            time_spent: null,
-          })),
-          timing: {
-            test_start_time: null,
-            test_end_time: null,
-            total_time_allowed: testPlan.time_limit,
-          },
-        }),
-        started_at: null,
-        completed_at: null,
-        score: null,
+            time_spent: 0
+          }))
+        })
       },
+      include: {
+        test_plans: true
+      }
     });
 
-    console.log('Test execution created', {
-      executionId: newExecution.execution_id.toString(),
-      testPlanId: newExecution.test_plan_id.toString(),
-    });
+    // Log activity for test start
+    await this.gamificationService.logActivity(
+      safeUserId,
+      'TEST_START',
+      0,
+      {
+        testPlanId: safePlanId.toString(),
+        totalQuestions: selectedQuestions.length
+      }
+    );
 
     return this.formatExecutionResponse(newExecution);
   }

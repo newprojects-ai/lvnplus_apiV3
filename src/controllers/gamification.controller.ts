@@ -145,3 +145,49 @@ export const levelUpNotification = async (
     next(error);
   }
 };
+
+export const updateSubjectMastery = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const userId = req.user?.id;
+    const { subjectId, correct } = req.body;
+    const result = await gamificationService.updateSubjectMastery(userId, subjectId, correct);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getActivityLog = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const userId = req.user?.id;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const activities = await gamificationService.getActivityLog(userId, page, limit);
+    res.json(activities);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const logActivity = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const userId = req.user?.id;
+    const { activityType, xpEarned, details } = req.body;
+    const result = await gamificationService.logActivity(userId, activityType, xpEarned, details);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};

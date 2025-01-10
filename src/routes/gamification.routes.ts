@@ -9,7 +9,10 @@ import {
   getAvailableRewards,
   purchaseReward,
   getLevelInfo,
-  levelUpNotification
+  levelUpNotification,
+  updateSubjectMastery,
+  getActivityLog,
+  logActivity
 } from '../controllers/gamification.controller';
 import { authenticate } from '../middleware/auth';
 
@@ -348,5 +351,147 @@ router.get('/levels', authenticate, getLevelInfo);
  *                   type: number
  */
 router.post('/levels/up', authenticate, levelUpNotification);
+
+/**
+ * @swagger
+ * /gamification/subject-mastery:
+ *   post:
+ *     summary: Update subject mastery based on question performance
+ *     tags: [Gamification]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - subjectId
+ *               - correct
+ *             properties:
+ *               subjectId:
+ *                 type: number
+ *               correct:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Subject mastery updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 masteryLevel:
+ *                   type: number
+ *                 accuracy:
+ *                   type: number
+ *                 totalAttempted:
+ *                   type: number
+ *                 correctAnswers:
+ *                   type: number
+ */
+router.post('/subject-mastery', authenticate, updateSubjectMastery);
+
+/**
+ * @swagger
+ * /gamification/activity:
+ *   get:
+ *     summary: Get user's activity log
+ *     tags: [Gamification]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Number of items per page
+ *     responses:
+ *       200:
+ *         description: Activity log with pagination
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 activities:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       type:
+ *                         type: string
+ *                       xpEarned:
+ *                         type: number
+ *                       details:
+ *                         type: object
+ *                       timestamp:
+ *                         type: string
+ *                         format: date-time
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     currentPage:
+ *                       type: number
+ *                     totalPages:
+ *                       type: number
+ *                     totalItems:
+ *                       type: number
+ */
+router.get('/activity', authenticate, getActivityLog);
+
+/**
+ * @swagger
+ * /gamification/activity:
+ *   post:
+ *     summary: Log a new activity
+ *     tags: [Gamification]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - activityType
+ *             properties:
+ *               activityType:
+ *                 type: string
+ *               xpEarned:
+ *                 type: number
+ *                 default: 0
+ *               details:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Activity logged successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 activity_id:
+ *                   type: string
+ *                 activity_type:
+ *                   type: string
+ *                 xp_earned:
+ *                   type: number
+ *                 created_at:
+ *                   type: string
+ *                   format: date-time
+ */
+router.post('/activity', authenticate, logActivity);
 
 export default router;

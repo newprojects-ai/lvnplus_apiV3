@@ -1,0 +1,365 @@
+# Node.js Development Best Practices Guide
+## TypeScript, Prisma, and MariaDB Stack
+
+### 1. Project Structure
+```
+project-root/
+├── src/
+│   ├── config/           # Configuration files
+│   ├── controllers/      # Request handlers
+│   ├── middlewares/      # Custom middleware
+│   ├── models/          # Type definitions and interfaces
+│   ├── services/        # Business logic
+│   ├── utils/           # Helper functions
+│   ├── routes/          # API routes
+│   └── app.ts           # Main application file
+├── prisma/
+│   ├── schema.prisma    # Prisma schema
+│   └── migrations/      # Database migrations
+├── tests/               # Test files
+├── .env                 # Environment variables
+├── .gitignore
+├── package.json
+└── tsconfig.json
+```
+
+### 2. TypeScript Configuration Best Practices
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "lib": ["ES2022"],
+    "moduleResolution": "NodeNext",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+```
+
+### 3. Prisma Setup and Best Practices
+
+#### 3.1 Schema Design
+```prisma
+// Use meaningful model names and relationships
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  posts     Post[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+}
+
+model Post {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String?  @db.Text
+  published Boolean  @default(false)
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+}
+```
+
+#### 3.2 Prisma Client Usage
+```typescript
+// services/userService.ts
+import { PrismaClient } from '@prisma/client'
+import { Injectable } from '@decorators/di'
+
+@Injectable()
+export class UserService {
+  private prisma: PrismaClient
+
+  constructor() {
+    this.prisma = new PrismaClient()
+  }
+
+  // Use transactions for related operations
+  async createUserWithPosts(userData: UserCreateInput, posts: PostCreateInput[]) {
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: userData,
+      })
+
+      await tx.post.createMany({
+        data: posts.map(post => ({
+          ...post,
+          authorId: user.id,
+        })),
+      })
+
+      return user
+    })
+  }
+}
+```
+
+### 4. MariaDB Configuration Best Practices
+
+#### 4.1 Database Configuration
+```typescript
+// config/database.ts
+export const dbConfig = {
+  connection: {
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || '3306'),
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+  },
+  pool: {
+    min: 2,
+    max: 10,
+  },
+  migrations: {
+    tableName: 'migrations',
+  },
+}
+```
+
+### 5. Error Handling
+
+```typescript
+// utils/errors.ts
+export class AppError extends Error {
+  constructor(
+    public statusCode: number,
+    public message: string,
+    public isOperational = true
+  ) {
+    super(message)
+    Object.setPrototypeOf(this, AppError.prototype)
+  }
+}
+
+// middlewares/errorHandler.ts
+import { Request, Response, NextFunction } from 'express'
+import { AppError } from '../utils/errors'
+
+export const errorHandler = (
+  err: Error,
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({
+      status: 'error',
+      message: err.message,
+    })
+  }
+
+  console.error('Error:', err)
+  return res.status(500).json({
+    status: 'error',
+    message: 'Internal server error',
+  })
+}
+```
+
+### 6. Environment Variables
+```env
+# .env
+NODE_ENV=development
+PORT=3000
+
+# Database
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=user
+DB_PASSWORD=password
+DB_NAME=database
+
+# Authentication
+JWT_SECRET=your-secret-key
+JWT_EXPIRES_IN=90d
+```
+
+### 7. Security Best Practices
+
+1. **Input Validation**
+```typescript
+// middlewares/validator.ts
+import { celebrate, Joi } from 'celebrate'
+
+export const userValidation = celebrate({
+  body: Joi.object({
+    email: Joi.string().email().required(),
+    password: Joi.string().min(8).required(),
+    name: Joi.string().required(),
+  }),
+})
+```
+
+2. **Authentication Middleware**
+```typescript
+// middlewares/auth.ts
+import jwt from 'jsonwebtoken'
+import { Request, Response, NextFunction } from 'express'
+import { AppError } from '../utils/errors'
+
+export const protect = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1]
+
+    if (!token) {
+      throw new AppError(401, 'Not authenticated')
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!)
+    req.user = decoded
+
+    next()
+  } catch (error) {
+    next(new AppError(401, 'Invalid token'))
+  }
+}
+```
+
+### 8. Testing Best Practices
+
+```typescript
+// tests/user.test.ts
+import { PrismaClient } from '@prisma/client'
+import { UserService } from '../src/services/userService'
+
+describe('UserService', () => {
+  let prisma: PrismaClient
+  let userService: UserService
+
+  beforeAll(async () => {
+    prisma = new PrismaClient()
+    userService = new UserService()
+  })
+
+  afterAll(async () => {
+    await prisma.$disconnect()
+  })
+
+  beforeEach(async () => {
+    await prisma.user.deleteMany()
+  })
+
+  it('should create a new user', async () => {
+    const userData = {
+      email: 'test@example.com',
+      name: 'Test User',
+    }
+
+    const user = await userService.createUser(userData)
+    expect(user.email).toBe(userData.email)
+    expect(user.name).toBe(userData.name)
+  })
+})
+```
+
+### 9. API Response Format
+
+```typescript
+// utils/response.ts
+export interface ApiResponse<T> {
+  status: 'success' | 'error'
+  data?: T
+  message?: string
+  errors?: string[]
+}
+
+export const createResponse = <T>(
+  data?: T,
+  message?: string,
+  status: 'success' | 'error' = 'success'
+): ApiResponse<T> => ({
+  status,
+  data,
+  message,
+})
+```
+
+### 10. Logging Best Practices
+
+```typescript
+// utils/logger.ts
+import winston from 'winston'
+
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+})
+
+if (process.env.NODE_ENV !== 'production') {
+  logger.add(
+    new winston.transports.Console({
+      format: winston.format.simple(),
+    })
+  )
+}
+
+export default logger
+```
+
+### 11. Performance Tips
+
+1. Use connection pooling in MariaDB configuration
+2. Implement caching for frequently accessed data
+3. Use appropriate indexes in database schema
+4. Implement pagination for large datasets
+5. Use compression middleware for responses
+6. Implement rate limiting for API endpoints
+
+### 12. Deployment Considerations
+
+1. Use PM2 or similar process manager for production
+2. Set up proper logging and monitoring
+3. Use SSL/TLS for database connections
+4. Implement database backup strategy
+5. Use environment-specific configuration
+6. Set up CI/CD pipeline
+
+### 13. Code Style and Formatting
+
+1. Use ESLint with TypeScript parser
+2. Use Prettier for consistent formatting
+3. Implement pre-commit hooks with husky
+4. Follow consistent naming conventions
+5. Document complex functions and interfaces
+6. Use meaningful variable and function names
+
+Remember to:
+- Keep business logic in services
+- Use dependency injection where possible
+- Write comprehensive tests
+- Document API endpoints
+- Handle errors gracefully
+- Use TypeScript features effectively
+- Keep security in mind
+- Monitor performance
+- Regular dependency updates

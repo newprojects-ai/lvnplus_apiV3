@@ -498,123 +498,6 @@ During the investigation of test execution creation, we identified an opportunit
 - Add more granular configuration options
 - Enhance caching mechanisms for question filtering
 
-### Test Execution Logic Refinement (Checkpoint 4)
-
-### Key Modifications
-
-#### TestPlan Service
-
-- Updated `selectQuestions` method to use `QuestionService.filterQuestions`
-- Simplified question selection logic
-- Improved parameter passing for question filtering
-- Added random question selection mechanism
-
-#### Execution Service
-
-- Enhanced `submitAnswer` method with more robust answer checking
-- Added methods `checkAnswer` and `determineExecutionStatus`
-- Improved test execution status management
-- Simplified response tracking and updating
-
-### Rationale
-
-- Improve flexibility in question selection
-- Enhance answer submission and tracking
-- Simplify data structures while maintaining functionality
-- Add more intelligent status determination for test executions
-
-### Implementation Details
-
-- Integrated direct filtering from QuestionService
-- Added logic to dynamically check answer correctness
-- Implemented status tracking based on answer completion
-
-### Next Steps
-
-- Comprehensive testing of the new question selection and answer submission logic
-- Validate the robustness of the new implementation across different test scenarios
-
-### BigInt Conversion and Error Handling Improvements (Checkpoint 5)
-
-### Key Modifications
-
-#### TestPlan Service
-
-- Enhanced BigInt conversion for all ID fields
-- Improved question selection logic
-- Simplified random question selection method
-- Removed unnecessary helper methods
-- Improved type safety for ID conversions
-
-#### Execution Service
-
-- Added robust BigInt conversion for execution and user IDs
-- Improved access control checks
-- Enhanced type safety in method parameters
-- Simplified ID comparison and access validation
-
-### Rationale
-
-- Resolve type conversion errors when handling IDs
-- Improve type safety and prevent potential runtime errors
-- Simplify complex logic and remove redundant code
-- Ensure consistent ID handling across services
-
-### Implementation Details
-
-- Added explicit BigInt conversion using `BigInt()` function
-- Simplified access control logic
-- Removed unnecessary type checking and conversion methods
-- Improved error handling for ID-related operations
-
-### Potential Issues Addressed
-
-- Resolved 'Cannot convert undefined to a BigInt' errors
-- Fixed type conversion issues in question filtering
-- Improved robustness of database query parameters
-
-### Next Steps
-
-- Comprehensive testing of ID conversion and access control logic
-- Monitor for any remaining type-related issues
-- Consider adding more robust type validation if needed
-
-### Question Filtering and Test Plan Creation Improvements (Checkpoint 6)
-
-### Key Modifications
-
-#### TestPlan Service
-
-- Fixed handling of `filterQuestions` method return value
-- Correctly extract `data` from question filtering result
-- Updated filter parameters to match QuestionService method signature
-- Improved parsing of question options
-- Enhanced error handling for insufficient questions
-
-#### Specific Changes
-
-- Added type-safe difficulty level conversion
-- Supported multiple input formats (string and numeric)
-- Improved error handling for difficulty level selection
-- Ensured consistent integer representation
-
-### Existing Functionality Preservation
-
-- Maintained the structure of test execution creation
-- Kept the timing and response tracking mechanisms intact
-- Ensured no breaking changes to the existing test workflow
-
-### Next Steps
-
-- Validate the changes through comprehensive testing
-- Monitor any potential impacts on existing test execution processes
-
-### Potential Future Improvements
-
-- Implement more sophisticated question selection algorithms
-- Add more granular configuration options
-- Enhance caching mechanisms for question filtering
-
 ### Test Plan Configuration Enhancements (Checkpoint 5)
 
 ### Question Filtering Improvements
@@ -738,7 +621,7 @@ During the investigation of test execution creation, we identified an opportunit
 
 - Add configurable difficulty weights
 - Implement more advanced distribution algorithms
-- Enhance logging for distribution strategy
+- Enhance caching mechanisms for question filtering
 
 ### Question Distribution Implementation (2024-12-10)
 
@@ -841,7 +724,7 @@ distributeQuestions(10, 5); // { 1: 2, 2: 2, 3: 2, 4: 2, 5: 2 }
 - Monitor test plan creation with new utility
 - Gather feedback on distribution effectiveness
 
-### BigInt Conversion and Error Handling Improvements (2024-12-11 at 09:45:33 UTC)
+### BigInt Conversion and Error Handling Improvements (2024-12-11)
 
 #### Timestamp
 
@@ -1190,3 +1073,84 @@ Authorization: Bearer <token>
 1. Update frontend code to use POST method
 2. Ensure proper error handling for failed requests
 3. Add loading state during request
+
+### Gamification System Implementation Update (2025-01-10T12:43:04Z)
+
+#### Subject Mastery and Activity Logging Implementation
+
+Added new functionality to track subject mastery and user activities in the gamification system:
+
+1. **Subject Mastery System**
+   - Implemented `updateSubjectMastery` method in GamificationService
+   - Tracks total questions attempted and correct answers per subject
+   - Calculates mastery level (0-5) based on accuracy:
+     - Level 0: Beginner (0-20% accuracy)
+     - Level 1: Novice (21-40% accuracy)
+     - Level 2: Intermediate (41-60% accuracy)
+     - Level 3: Advanced (61-80% accuracy)
+     - Level 4: Expert (81-95% accuracy)
+     - Level 5: Master (96-100% accuracy)
+   - Awards XP for mastery level increases (100 XP per level)
+   - Endpoint: POST `/api/gamification/subject-mastery`
+
+2. **Activity Logging System**
+   - Added activity logging functionality with pagination
+   - Tracks all user activities with XP gains
+   - Stores detailed activity information including:
+     - Activity type
+     - XP earned
+     - Timestamp
+     - Additional details in JSON format
+   - Endpoints:
+     - GET `/api/gamification/activity` - View activity log
+     - POST `/api/gamification/activity` - Log new activity
+
+3. **Integration Points**
+   - Subject mastery updates on question completion
+   - Activity logging for:
+     - XP gains
+     - Achievement unlocks
+     - Level ups
+     - Mastery increases
+     - Test completions
+
+#### Next Steps
+1. Integrate subject mastery updates with test execution system
+2. Add achievement triggers for mastery milestones
+3. Implement streak bonuses for consistent activity
+4. Add initial data for achievements and rewards
+5. Set up level configuration data
+
+### Gamification Integration with Test Execution (2024-01-09)
+
+#### Changes Made
+
+1. Updated `execution.service.ts` to integrate gamification features:
+   - Added `GamificationService` integration for tracking subject mastery and activity logging
+   - Implemented XP rewards for:
+     - Answer submissions (10 XP for correct answers)
+     - Test completion (10 XP per score point)
+   - Added activity logging for:
+     - Test starts
+     - Answer submissions
+     - Test completions
+   - Integrated subject mastery updates based on exam board subjects
+
+2. Gamification Events Added:
+   - `TEST_START`: Logged when a test execution is created
+   - `ANSWER_SUBMISSION`: Logged for each answer submission with correctness
+   - `TEST_COMPLETION`: Logged when a test is completed with final score
+
+#### Rationale
+
+- Integrating gamification directly into the test execution flow ensures immediate feedback and rewards
+- XP rewards are scaled based on performance to encourage better results
+- Subject mastery tracking helps identify areas of strength and improvement
+- Activity logging provides detailed insights into user engagement and progress
+
+#### Next Steps
+
+- Monitor XP distribution and adjust reward values if needed
+- Add achievement triggers based on test completion milestones
+- Implement leaderboard integration with test scores
+- Consider adding bonus XP for streaks of correct answers

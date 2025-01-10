@@ -355,4 +355,115 @@ export class GamificationService {
       xpBonus: 0 // Implement XP bonus logic if needed
     };
   }
+
+  async updateSubjectMastery(userId: bigint, subjectId: number, correct: boolean) {
+    const mastery = await prisma.subject_mastery.findUnique({
+      where: {
+        user_id_subject_id: {
+          user_id: userId,
+          subject_id: subjectId
+        }
+      }
+    });
+
+    if (!mastery) {
+      // Create new mastery record if it doesn't exist
+      await prisma.subject_mastery.create({
+        data: {
+          user_id: userId,
+          subject_id: subjectId,
+          mastery_level: 0,
+          total_questions_attempted: 1,
+          correct_answers: correct ? 1 : 0,
+          last_test_date: new Date()
+        }
+      });
+      return { masteryLevel: 0, isNewMastery: true };
+    }
+
+    // Calculate new mastery level based on performance
+    const totalAttempted = mastery.total_questions_attempted + 1;
+    const correctAnswers = mastery.correct_answers + (correct ? 1 : 0);
+    const accuracy = correctAnswers / totalAttempted;
+    
+    // Mastery levels:
+    // 0: Beginner (0-20% accuracy)
+    // 1: Novice (21-40% accuracy)
+    // 2: Intermediate (41-60% accuracy)
+    // 3: Advanced (61-80% accuracy)
+    // 4: Expert (81-95% accuracy)
+    // 5: Master (96-100% accuracy)
+    let newMasteryLevel = Math.floor(accuracy * 5);
+    newMasteryLevel = Math.min(newMasteryLevel, 5); // Cap at level 5
+
+    await prisma.subject_mastery.update({
+      where: {
+        user_id_subject_id: {
+          user_id: userId,
+          subject_id: subjectId
+        }
+      },
+      data: {
+        mastery_level: newMasteryLevel,
+        total_questions_attempted: totalAttempted,
+        correct_answers: correctAnswers,
+        last_test_date: new Date()
+      }
+    });
+
+    // Award XP for mastery level increase
+    if (newMasteryLevel > mastery.mastery_level) {
+      const xpGain = (newMasteryLevel - mastery.mastery_level) * 100;
+      await this.addXP(userId, xpGain, 'mastery_increase');
+    }
+
+    return {
+      masteryLevel: newMasteryLevel,
+      accuracy: Math.round(accuracy * 100),
+      totalAttempted,
+      correctAnswers
+    };
+  }
+
+  async getActivityLog(userId: bigint, page: number = 1, limit: number = 10) {
+    const skip = (page - 1) * limit;
+    
+    const [activities, total] = await Promise.all([
+      prisma.activity_log.findMany({
+        where: { user_id: userId },
+        orderBy: { created_at: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.activity_log.count({
+        where: { user_id: userId }
+      })
+    ]);
+
+    return {
+      activities: activities.map(activity => ({
+        id: activity.activity_id.toString(),
+        type: activity.activity_type,
+        xpEarned: activity.xp_earned,
+        details: activity.details ? JSON.parse(activity.details) : null,
+        timestamp: activity.created_at
+      })),
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total
+      }
+    };
+  }
+
+  async logActivity(userId: bigint, activityType: string, xpEarned: number = 0, details: any = null) {
+    return prisma.activity_log.create({
+      data: {
+        user_id: userId,
+        activity_type: activityType,
+        xp_earned: xpEarned,
+        details: details ? JSON.stringify(details) : null
+      }
+    });
+  }
 }
