@@ -1333,3 +1333,60 @@ await testAssignmentService.assignToGroup(testPlanId, tutorId, groupId, dueDate)
 2. Implement authentication middleware for parent/tutor routes
 3. Add performance tracking features
 4. Develop notification system for test assignments
+
+### Parent/Tutor Features Implementation - Phase 2 (2025-01-23 15:19:22Z)
+
+#### Changes Made
+1. **Authentication Middleware**
+   - Added `guardian-auth.middleware.ts`:
+     - `requireGuardianRole`: Ensures user is a parent or tutor
+     - `requireTutorRole`: Ensures user is specifically a tutor
+
+2. **Controllers**
+   - `GuardianController`: Manages guardian-student relationships
+     - Request/confirm guardian links
+     - List connected students/guardians
+   - `StudyGroupController`: Handles study group operations
+     - Create/manage groups and memberships
+   - `TestAssignmentController`: Manages test assignments
+     - Assign tests to students/groups
+     - Track assignment status
+
+3. **API Routes**
+   ```typescript
+   // Guardian Routes
+   POST   /api/guardians/request-link
+   PUT    /api/guardians/confirm-link/:relationshipId
+   PUT    /api/guardians/deactivate/:studentId
+   GET    /api/guardians/students
+   GET    /api/guardians/guardians
+
+   // Study Group Routes (Tutor only)
+   POST   /api/groups
+   GET    /api/groups
+   POST   /api/groups/:groupId/members
+   DELETE /api/groups/:groupId/members/:studentId
+   PUT    /api/groups/:groupId/deactivate
+   GET    /api/groups/:groupId/members
+
+   // Test Assignment Routes
+   POST   /api/assignments/assign/student
+   POST   /api/assignments/assign/group
+   GET    /api/assignments/assigned
+   GET    /api/assignments/my-assignments
+   GET    /api/assignments/:assignmentId
+   PUT    /api/assignments/:assignmentId/status
+   ```
+
+#### Impact
+- Complete API infrastructure for parent/tutor features
+- Secure role-based access control
+- Flexible test assignment system
+
+#### Next Steps
+1. Implement performance tracking features
+2. Add email notifications for:
+   - Guardian link requests
+   - Test assignments
+   - Assignment status updates
+3. Create UI components for new features
