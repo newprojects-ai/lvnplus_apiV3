@@ -45,6 +45,21 @@ export class AuthService {
       },
     });
 
+    // Create initial student progress record if user has STUDENT role
+    if (roles.includes('STUDENT')) {
+      await prisma.student_progress.create({
+        data: {
+          user_id: user.user_id,
+          level: 1,
+          current_xp: 0,
+          next_level_xp: 1000,
+          streak_days: 0,
+          last_activity_date: new Date(),
+          total_points: 0
+        }
+      });
+    }
+
     const token = this.generateToken(user);
 
     return {

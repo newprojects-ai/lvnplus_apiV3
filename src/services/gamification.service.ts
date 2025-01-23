@@ -4,26 +4,19 @@ import { NotFoundError, ValidationError } from '../utils/errors';
 export class GamificationService {
   async getProgress(userId: bigint) {
     const progress = await prisma.student_progress.findUnique({
-      where: { user_id: userId },
-      include: {
-        subject_mastery: {
-          select: {
-            subject_id: true,
-            mastery_level: true
-          }
-        }
-      }
+      where: { user_id: userId }
     });
 
     if (!progress) {
-      throw new NotFoundError('Student progress not found');
+      // Create initial progress record if not found
+      const newProgress = await this.initializeStudentProgress(userId);
+      return this.formatProgressResponse(newProgress);
     }
 
-    const subjectMastery = progress.subject_mastery.reduce((acc, curr) => {
-      acc[curr.subject_id] = curr.mastery_level;
-      return acc;
-    }, {} as Record<string, number>);
+    return this.formatProgressResponse(progress);
+  }
 
+  private formatProgressResponse(progress: any) {
     return {
       userId: progress.user_id.toString(),
       level: progress.level,
@@ -32,8 +25,51 @@ export class GamificationService {
       streakDays: progress.streak_days,
       lastActivityDate: progress.last_activity_date,
       totalPoints: progress.total_points,
-      subjectMastery
+      subjectMastery: {}  // Initialize as empty object since we'll handle subject mastery separately
     };
+  }
+
+  private async initializeStudentProgress(userId: bigint) {
+    try {
+      // First verify that the user exists and is a student
+      const user = await prisma.users.findUnique({
+        where: { user_id: userId },
+        include: {
+          user_roles: {
+            include: {
+              roles: true
+            }
+          }
+        }
+      });
+
+      if (!user) {
+        throw new NotFoundError('User not found');
+      }
+
+      const isStudent = user.user_roles.some(ur => 
+        ur.roles.role_name.toUpperCase() === 'STUDENT'
+      );
+      if (!isStudent) {
+        throw new ValidationError('User is not a student');
+      }
+
+      // Create initial progress record
+      return await prisma.student_progress.create({
+        data: {
+          user_id: userId,
+          level: 1,
+          current_xp: 0,
+          next_level_xp: 1000,
+          streak_days: 0,
+          last_activity_date: new Date(),
+          total_points: 0
+        }
+      });
+    } catch (error) {
+      console.error('Error initializing student progress:', error);
+      throw error;
+    }
   }
 
   async addXP(userId: bigint, amount: number, source: string) {
@@ -41,12 +77,13 @@ export class GamificationService {
       throw new ValidationError('XP amount must be positive');
     }
 
-    const progress = await prisma.student_progress.findUnique({
+    let progress = await prisma.student_progress.findUnique({
       where: { user_id: userId }
     });
 
     if (!progress) {
-      throw new NotFoundError('Student progress not found');
+      // Initialize progress if not found
+      progress = await this.initializeStudentProgress(userId);
     }
 
     const newXP = progress.current_xp + amount;
