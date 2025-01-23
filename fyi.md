@@ -1287,3 +1287,49 @@ return await prisma.student_progress.create({
 - Consider implementing subject mastery as a separate service
 - Add proper schema relations if subject mastery tracking is needed
 - Update other services that might depend on subject mastery data
+
+### Parent/Tutor Features Implementation - Phase 1 (2025-01-23 15:15:43Z)
+
+#### Changes Made
+1. **Database Schema Updates**
+   - Added new models in Prisma schema:
+     - `student_guardians`: Manages parent/tutor relationships with students
+     - `study_groups`: Allows tutors to organize students into groups
+     - `group_members`: Tracks student membership in study groups
+     - `test_assignments`: Handles test assignments to students/groups
+
+2. **New Services**
+   - `GuardianService`: Manages parent/tutor-student relationships
+     - Request/confirm/deactivate guardian links
+     - List connected students/guardians
+   - `StudyGroupService`: Handles study group operations
+     - Create/deactivate groups
+     - Add/remove group members
+     - List group details
+   - `TestAssignmentService`: Manages test assignments
+     - Assign tests to students/groups
+     - Track assignment status
+     - List assignments by assigner/student
+
+#### Technical Details
+```typescript
+// Example: Creating a guardian-student link
+await guardianService.requestLink(guardianId, studentEmail, 'PARENT');
+
+// Example: Creating a study group
+await studyGroupService.createGroup(tutorId, 'Weekend Math Group');
+
+// Example: Assigning a test
+await testAssignmentService.assignToGroup(testPlanId, tutorId, groupId, dueDate);
+```
+
+#### Impact
+- Enables parent/tutor oversight of student activities
+- Facilitates group-based test assignments
+- Provides foundation for performance tracking
+
+#### Next Steps
+1. Create API controllers for the new services
+2. Implement authentication middleware for parent/tutor routes
+3. Add performance tracking features
+4. Develop notification system for test assignments

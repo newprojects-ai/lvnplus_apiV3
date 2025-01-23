@@ -166,6 +166,7 @@ model users {
   student_rewards                         student_rewards[]
   subject_mastery                         subject_mastery[]
   activity_log                            activity_log[]
+  student_guardians                       student_guardians[]
 }
 
 model difficulty_levels {
@@ -315,4 +316,82 @@ enum test_templates_test_type {
 enum test_templates_timing_type {
   TIMED
   UNTIMED
+}
+
+enum GuardianRelationType {
+  PARENT
+  TUTOR
+}
+
+enum GuardianRelationStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+}
+
+enum TestAssignmentStatus {
+  PENDING
+  COMPLETED
+  OVERDUE
+}
+
+model student_guardians {
+  relationship_id   BigInt                @id @default(autoincrement())
+  guardian_id       BigInt
+  student_id        BigInt
+  relationship_type GuardianRelationType
+  status           GuardianRelationStatus @default(PENDING)
+  created_at       DateTime?              @default(now()) @db.Timestamp(0)
+  updated_at       DateTime?              @default(now()) @db.Timestamp(0)
+  guardian         users                  @relation("guardian_relationships", fields: [guardian_id], references: [user_id])
+  student          users                  @relation("student_relationships", fields: [student_id], references: [user_id])
+
+  @@unique([guardian_id, student_id], map: "unique_guardian_student")
+  @@index([guardian_id])
+  @@index([student_id])
+}
+
+model study_groups {
+  group_id    BigInt          @id @default(autoincrement())
+  tutor_id    BigInt
+  group_name  String          @db.VarChar(100)
+  description String?         @db.Text
+  created_at  DateTime?       @default(now()) @db.Timestamp(0)
+  active      Boolean?        @default(true)
+  tutor       users           @relation(fields: [tutor_id], references: [user_id])
+  members     group_members[]
+  assignments test_assignments[]
+
+  @@index([tutor_id])
+}
+
+model group_members {
+  group_id   BigInt
+  student_id BigInt
+  joined_at  DateTime? @default(now()) @db.Timestamp(0)
+  group      study_groups @relation(fields: [group_id], references: [group_id])
+  student    users     @relation(fields: [student_id], references: [user_id])
+
+  @@id([group_id, student_id])
+  @@index([student_id])
+}
+
+model test_assignments {
+  assignment_id BigInt               @id @default(autoincrement())
+  test_plan_id  BigInt
+  assigned_by   BigInt
+  group_id      BigInt?
+  student_id    BigInt?
+  due_date      DateTime            @db.Timestamp(0)
+  status        TestAssignmentStatus @default(PENDING)
+  created_at    DateTime?           @default(now()) @db.Timestamp(0)
+  test_plan     test_plans          @relation(fields: [test_plan_id], references: [test_plan_id])
+  assigner      users               @relation("assignment_creators", fields: [assigned_by], references: [user_id])
+  group         study_groups?       @relation(fields: [group_id], references: [group_id])
+  student       users?              @relation("assigned_students", fields: [student_id], references: [user_id])
+
+  @@index([test_plan_id])
+  @@index([assigned_by])
+  @@index([group_id])
+  @@index([student_id])
 }
