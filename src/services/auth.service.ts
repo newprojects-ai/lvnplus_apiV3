@@ -86,13 +86,7 @@ export class AuthService {
         },
       });
 
-      console.log('User found:', {
-        user: user ? {
-          id: user.user_id,
-          email: user.email,
-          roles: user.user_roles.map(ur => ur.roles.role_name.toUpperCase()) // Normalize to uppercase
-        } : null
-      });
+      console.log('Raw user data:', JSON.stringify(user, null, 2));
 
       if (!user) {
         throw new UnauthorizedError('Invalid email or password');
@@ -100,6 +94,17 @@ export class AuthService {
 
       if (!user.active) {
         throw new UnauthorizedError('Account is inactive');
+      }
+
+      console.log('Password verification:', {
+        hasPassword: !!credentials.password,
+        hasHash: !!user.password_hash,
+        passwordLength: credentials.password?.length,
+        hashLength: user.password_hash?.length
+      });
+
+      if (!credentials.password || !user.password_hash) {
+        throw new UnauthorizedError('Invalid email or password');
       }
 
       const isValidPassword = await bcrypt.compare(
@@ -136,7 +141,11 @@ export class AuthService {
     } catch (error) {
       console.error('Login error:', {
         email: credentials.email,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        } : 'Unknown error'
       });
       throw error;
     }
@@ -144,21 +153,44 @@ export class AuthService {
 
   private generateToken(user: any, role: string): string {
     try {
+      console.log('Generating token with:', {
+        userId: user.user_id?.toString(),
+        email: user.email,
+        role,
+        jwtSecret: process.env.JWT_SECRET ? 'present' : 'missing'
+      });
+
+      if (!process.env.JWT_SECRET) {
+        throw new Error('JWT_SECRET is not defined in environment variables');
+      }
+
+      if (!user.user_id) {
+        throw new Error('User ID is missing');
+      }
+
       return jwt.sign(
         {
           userId: user.user_id.toString(),
           email: user.email,
-          role, // Include only the specific role being used for this session
+          role,
         },
-        process.env.JWT_SECRET!,
+        process.env.JWT_SECRET,
         { 
           expiresIn: '24h',
           algorithm: 'HS256'
         }
       );
     } catch (error) {
-      console.error('Error generating token:', error);
-      throw new Error('Failed to generate authentication token');
+      console.error('Error generating token:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        user: {
+          id: user?.user_id,
+          email: user?.email
+        },
+        role
+      });
+      throw error;
     }
   }
 

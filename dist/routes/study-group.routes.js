@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const study_group_controller_1 = require("../controllers/study-group.controller");
+const guardian_auth_middleware_1 = require("../middleware/guardian-auth.middleware");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const router = express_1.default.Router();
+const controller = new study_group_controller_1.StudyGroupController();
+router.use(auth_middleware_1.requireAuth);
+router.use(guardian_auth_middleware_1.requireTutorRole);
+router.post('/', controller.createGroup);
+router.get('/', controller.getGroups);
+router.post('/:groupId/members', controller.addMember);
+router.delete('/:groupId/members/:studentId', controller.removeMember);
+router.put('/:groupId/deactivate', controller.deactivateGroup);
+router.get('/:groupId/members', controller.getGroupMembers);
+exports.default = router;

@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const testPlan_controller_1 = require("../controllers/testPlan.controller");
+const validation_1 = require("../middleware/validation");
+const auth_1 = require("../middleware/auth");
+const roles_1 = require("../middleware/roles");
+const router = (0, express_1.Router)();
+router.post('/', auth_1.authenticate, (0, roles_1.checkRole)(['TEACHER', 'PARENT', 'STUDENT']), validation_1.validateTestPlanCreation, testPlan_controller_1.createTestPlan);
+router.get('/:planId', auth_1.authenticate, testPlan_controller_1.getTestPlan);
+router.patch('/:planId', auth_1.authenticate, (0, roles_1.checkRole)(['TEACHER', 'PARENT']), validation_1.validateTestPlanUpdate, testPlan_controller_1.updateTestPlan);
+router.delete('/:planId', auth_1.authenticate, (0, roles_1.checkRole)(['TEACHER', 'PARENT']), testPlan_controller_1.deleteTestPlan);
+exports.default = router;

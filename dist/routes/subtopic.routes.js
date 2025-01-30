@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const subtopic_controller_1 = require("../controllers/subtopic.controller");
+const auth_1 = require("../middleware/auth");
+const roles_1 = require("../middleware/roles");
+const validation_1 = require("../middleware/validation");
+const router = (0, express_1.Router)();
+router.get('/topics/:topicId/subtopics', auth_1.authenticate, subtopic_controller_1.getSubtopics);
+router.post('/topics/:topicId/subtopics', auth_1.authenticate, (0, roles_1.checkRole)(['ADMIN']), validation_1.validateSubtopicCreation, subtopic_controller_1.createSubtopic);
+router.put('/subtopics/:id', auth_1.authenticate, (0, roles_1.checkRole)(['ADMIN']), validation_1.validateSubtopicUpdate, subtopic_controller_1.updateSubtopic);
+router.delete('/subtopics/:id', auth_1.authenticate, (0, roles_1.checkRole)(['ADMIN']), subtopic_controller_1.deleteSubtopic);
+exports.default = router;

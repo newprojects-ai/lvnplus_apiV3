@@ -97,6 +97,8 @@ model test_plans {
   exam_boards                        exam_boards            @relation(fields: [board_id], references: [board_id], onUpdate: Restrict, map: "test_plans_ibfk_2")
   users_test_plans_student_idTousers users                  @relation("test_plans_student_idTousers", fields: [student_id], references: [user_id], onUpdate: Restrict, map: "test_plans_ibfk_3")
   users_test_plans_planned_byTousers users                  @relation("test_plans_planned_byTousers", fields: [planned_by], references: [user_id], onUpdate: Restrict, map: "test_plans_ibfk_4")
+  study_groups study_groups[] @relation("GroupTests")
+  assignments  test_assignments[]
 
   @@index([board_id], map: "board_id")
   @@index([student_id], map: "idx_test_plans_student")
@@ -149,15 +151,17 @@ model user_roles {
 model users {
   user_id                                 BigInt                 @id @default(autoincrement())
   email                                   String                 @unique(map: "email") @db.VarChar(255)
-  password_hash                           String                 @db.VarChar(255)
-  first_name                              String?                @db.VarChar(100)
-  last_name                               String?                @db.VarChar(100)
+  first_name                              String                 @db.VarChar(100)
+  last_name                               String                 @db.VarChar(100)
+  password                                String                 @db.VarChar(255)
   created_at                              DateTime?              @default(now()) @db.Timestamp(0)
   updated_at                              DateTime?              @default(now()) @db.Timestamp(0)
   active                                  Boolean?               @default(true)
+  
+  // Relations
   questions                               questions[]
-  test_plans_test_plans_student_idTousers test_plans[]           @relation("test_plans_student_idTousers")
-  test_plans_test_plans_planned_byTousers test_plans[]           @relation("test_plans_planned_byTousers")
+  test_plans_student                      test_plans[]           @relation("test_plans_student_idTousers")
+  test_plans_planner                      test_plans[]           @relation("test_plans_planned_byTousers")
   test_templates                          test_templates[]
   user_roles                              user_roles[]
   test_executions                         test_executions[]
@@ -166,7 +170,15 @@ model users {
   student_rewards                         student_rewards[]
   subject_mastery                         subject_mastery[]
   activity_log                            activity_log[]
-  student_guardians                       student_guardians[]
+  guardian_relationships                  student_guardians[]    @relation("guardian_relationships")
+  student_relationships                   student_guardians[]    @relation("student_relationships")
+  group_memberships                       group_members[]        @relation("student_memberships")
+  tutor_groups                            study_groups[]         @relation("TutorGroups")
+  student_groups                          study_groups[]         @relation("GroupStudents")
+  assignments_created                     test_assignments[]     @relation("assignment_creators")
+  assignments_received                    test_assignments[]     @relation("assigned_students")
+
+  @@map("users")
 }
 
 model difficulty_levels {
@@ -335,6 +347,24 @@ enum TestAssignmentStatus {
   OVERDUE
 }
 
+model study_groups {
+  group_id    BigInt      @id @default(autoincrement())
+  group_name  String      @db.VarChar(255)
+  description String?     @db.Text
+  tutor_id    BigInt
+  created_at  DateTime?   @default(now()) @db.Timestamp(0)
+  updated_at  DateTime?   @default(now()) @db.Timestamp(0)
+  
+  // Relations
+  tutor       users       @relation("TutorGroups", fields: [tutor_id], references: [user_id])
+  students    users[]     @relation("GroupStudents")
+  members     group_members[]
+  assignments test_assignments[]
+  test_plans  test_plans[] @relation("GroupTests")
+
+  @@index([tutor_id])
+}
+
 model student_guardians {
   relationship_id   BigInt                @id @default(autoincrement())
   guardian_id       BigInt
@@ -343,6 +373,8 @@ model student_guardians {
   status           GuardianRelationStatus @default(PENDING)
   created_at       DateTime?              @default(now()) @db.Timestamp(0)
   updated_at       DateTime?              @default(now()) @db.Timestamp(0)
+  
+  // Relations
   guardian         users                  @relation("guardian_relationships", fields: [guardian_id], references: [user_id])
   student          users                  @relation("student_relationships", fields: [student_id], references: [user_id])
 
@@ -351,26 +383,14 @@ model student_guardians {
   @@index([student_id])
 }
 
-model study_groups {
-  group_id    BigInt          @id @default(autoincrement())
-  tutor_id    BigInt
-  group_name  String          @db.VarChar(100)
-  description String?         @db.Text
-  created_at  DateTime?       @default(now()) @db.Timestamp(0)
-  active      Boolean?        @default(true)
-  tutor       users           @relation(fields: [tutor_id], references: [user_id])
-  members     group_members[]
-  assignments test_assignments[]
-
-  @@index([tutor_id])
-}
-
 model group_members {
   group_id   BigInt
   student_id BigInt
-  joined_at  DateTime? @default(now()) @db.Timestamp(0)
+  joined_at  DateTime?    @default(now()) @db.Timestamp(0)
+  
+  // Relations
   group      study_groups @relation(fields: [group_id], references: [group_id])
-  student    users     @relation(fields: [student_id], references: [user_id])
+  student    users       @relation("student_memberships", fields: [student_id], references: [user_id])
 
   @@id([group_id, student_id])
   @@index([student_id])
@@ -385,6 +405,8 @@ model test_assignments {
   due_date      DateTime            @db.Timestamp(0)
   status        TestAssignmentStatus @default(PENDING)
   created_at    DateTime?           @default(now()) @db.Timestamp(0)
+  
+  // Relations
   test_plan     test_plans          @relation(fields: [test_plan_id], references: [test_plan_id])
   assigner      users               @relation("assignment_creators", fields: [assigned_by], references: [user_id])
   group         study_groups?       @relation(fields: [group_id], references: [group_id])

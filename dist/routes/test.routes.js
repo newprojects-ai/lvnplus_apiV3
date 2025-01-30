@@ -1,0 +1,16 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const test_controller_1 = require("../controllers/test.controller");
+const auth_1 = require("../middleware/auth");
+const roles_1 = require("../middleware/roles");
+const validation_1 = require("../middleware/validation");
+const router = (0, express_1.Router)();
+router.post('/plan', auth_1.authenticate, (0, roles_1.checkRole)(['TEACHER', 'PARENT']), validation_1.validateTestPlanCreation, test_controller_1.createTestPlan);
+router.get('/plan/:id', auth_1.authenticate, test_controller_1.getTestPlan);
+router.get('/student/:studentId', auth_1.authenticate, test_controller_1.getStudentTests);
+router.post('/:planId/start', auth_1.authenticate, test_controller_1.startTest);
+router.put('/:executionId/submit', auth_1.authenticate, test_controller_1.submitTest);
+router.get('/:executionId/status', auth_1.authenticate, test_controller_1.getTestStatus);
+router.get('/:executionId/results', auth_1.authenticate, test_controller_1.getTestResults);
+exports.default = router;

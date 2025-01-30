@@ -1,175 +1,170 @@
-import { TestAssignmentStatus } from '@prisma/client';
-import { NotFoundError, ValidationError } from '../utils/errors';
-import { prisma } from '../utils/db';
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { AssignTestDto } from '../dto/test-assignment.dto';
 
+@Injectable()
 export class TestAssignmentService {
-  async assignToStudent(
-    testPlanId: bigint,
-    assignerId: bigint,
-    studentId: bigint,
-    dueDate: Date
-  ) {
-    // Verify the test plan exists
-    const testPlan = await prisma.test_plans.findUnique({
-      where: { test_plan_id: testPlanId }
-    });
+  constructor(private prisma: PrismaService) {}
 
-    if (!testPlan) {
-      throw new NotFoundError('Test plan not found');
-    }
-
-    // Create the assignment
-    return await prisma.test_assignments.create({
+  async assignToStudent(tutorId: string, studentId: string, data: AssignTestDto) {
+    return this.prisma.test_assignments.create({
       data: {
-        test_plan_id: testPlanId,
-        assigned_by: assignerId,
-        student_id: studentId,
-        due_date: dueDate
+        due_date: data.dueDate,
+        instructions: data.instructions,
+        test_plan: {
+          connect: { test_plan_id: data.testId }
+        },
+        student: {
+          connect: { user_id: studentId }
+        },
+        assigned_by: tutorId
       }
     });
   }
 
-  async assignToGroup(
-    testPlanId: bigint,
-    assignerId: bigint,
-    groupId: bigint,
-    dueDate: Date
-  ) {
-    // Verify the group exists and is active
-    const group = await prisma.study_groups.findFirst({
-      where: {
-        group_id: groupId,
-        active: true
+  async assignToGroup(tutorId: string, groupId: string, data: AssignTestDto) {
+    // First, get all students in the group
+    const group = await this.prisma.study_groups.findUnique({
+      where: { group_id: groupId },
+      include: {
+        students: true
       }
     });
 
     if (!group) {
-      throw new NotFoundError('Study group not found or inactive');
+      throw new Error('Group not found');
     }
 
-    // Create the group assignment
-    return await prisma.test_assignments.create({
-      data: {
-        test_plan_id: testPlanId,
-        assigned_by: assignerId,
-        group_id: groupId,
-        due_date: dueDate
-      }
-    });
-  }
-
-  async getAssignmentsByAssigner(assignerId: bigint) {
-    return await prisma.test_assignments.findMany({
-      where: {
-        assigned_by: assignerId
-      },
-      include: {
-        test_plan: true,
-        student: {
-          select: {
-            user_id: true,
-            email: true,
-            first_name: true,
-            last_name: true
-          }
-        },
-        group: {
-          include: {
-            members: {
-              include: {
-                student: {
-                  select: {
-                    user_id: true,
-                    email: true,
-                    first_name: true,
-                    last_name: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    });
-  }
-
-  async getAssignmentsByStudent(studentId: bigint) {
-    return await prisma.test_assignments.findMany({
-      where: {
-        OR: [
-          { student_id: studentId },
-          {
+    // Create assignments for each student in the group
+    const assignments = await Promise.all(
+      group.students.map(student =>
+        this.prisma.test_assignments.create({
+          data: {
+            due_date: data.dueDate,
+            instructions: data.instructions,
+            test_plan: {
+              connect: { test_plan_id: data.testId }
+            },
+            student: {
+              connect: { user_id: student.user_id }
+            },
+            assigned_by: tutorId,
             group: {
-              members: {
-                some: {
-                  student_id: studentId
-                }
-              }
+              connect: { group_id: groupId }
             }
           }
-        ]
+        })
+      )
+    );
+
+    // Log activity for each student
+    await Promise.all(
+      group.students.map(student =>
+        this.prisma.activity_log.create({
+          data: {
+            activity_type: 'test_assigned',
+            details: `Test assigned to group ${group.group_name}`,
+            user: {
+              connect: { user_id: student.user_id }
+            }
+          }
+        })
+      )
+    );
+
+    return {
+      groupId,
+      assignments
+    };
+  }
+
+  async getStudentAssignments(studentId: string) {
+    return this.prisma.test_assignments.findMany({
+      where: {
+        student_id: studentId,
+        status: 'PENDING'
       },
       include: {
         test_plan: true,
-        assigner: {
-          select: {
-            user_id: true,
-            email: true,
-            first_name: true,
-            last_name: true
-          }
-        },
+        group: true,
+        assigner: true
+      },
+      orderBy: {
+        due_date: 'asc'
+      }
+    });
+  }
+
+  async getGroupAssignments(groupId: string) {
+    return this.prisma.test_assignments.findMany({
+      where: {
+        group_id: groupId
+      },
+      include: {
+        test_plan: true,
+        student: true,
+        assigner: true
+      },
+      orderBy: {
+        due_date: 'asc'
+      }
+    });
+  }
+
+  async completeAssignment(assignmentId: string, score: number) {
+    const assignment = await this.prisma.test_assignments.update({
+      where: { assignment_id: assignmentId },
+      data: {
+        status: 'COMPLETED',
+        completed_at: new Date()
+      },
+      include: {
+        student: true,
         group: true
       }
     });
-  }
 
-  async updateAssignmentStatus(assignmentId: bigint, status: TestAssignmentStatus) {
-    const assignment = await prisma.test_assignments.findUnique({
-      where: { assignment_id: assignmentId }
+    // Create test execution
+    await this.prisma.test_executions.create({
+      data: {
+        test_plan_id: assignment.test_plan_id,
+        student_id: assignment.student_id,
+        score: score,
+        status: 'COMPLETED',
+        completed_at: new Date()
+      }
     });
 
-    if (!assignment) {
-      throw new NotFoundError('Assignment not found');
-    }
-
-    return await prisma.test_assignments.update({
-      where: { assignment_id: assignmentId },
-      data: { status }
+    // Log activity
+    await this.prisma.activity_log.create({
+      data: {
+        activity_type: 'test_completed',
+        details: `Completed test with score ${score}%${
+          assignment.group ? ` (Group: ${assignment.group.group_name})` : ''
+        }`,
+        user: {
+          connect: { user_id: assignment.student_id }
+        }
+      }
     });
+
+    return assignment;
   }
 
-  async getAssignmentDetails(assignmentId: bigint) {
-    const assignment = await prisma.test_assignments.findUnique({
+  async getAssignmentStats(assignmentId: string) {
+    const assignment = await this.prisma.test_assignments.findUnique({
       where: { assignment_id: assignmentId },
       include: {
+        student: true,
         test_plan: true,
-        assigner: {
-          select: {
-            user_id: true,
-            email: true,
-            first_name: true,
-            last_name: true
-          }
-        },
-        student: {
-          select: {
-            user_id: true,
-            email: true,
-            first_name: true,
-            last_name: true
-          }
-        },
         group: {
           include: {
-            members: {
+            students: {
               include: {
-                student: {
-                  select: {
-                    user_id: true,
-                    email: true,
-                    first_name: true,
-                    last_name: true
+                test_executions: {
+                  where: {
+                    test_plan_id: assignment.test_plan_id,
+                    status: 'COMPLETED'
                   }
                 }
               }
@@ -180,9 +175,36 @@ export class TestAssignmentService {
     });
 
     if (!assignment) {
-      throw new NotFoundError('Assignment not found');
+      throw new Error('Assignment not found');
     }
 
-    return assignment;
+    if (!assignment.group_id) {
+      const execution = await this.prisma.test_executions.findFirst({
+        where: {
+          test_plan_id: assignment.test_plan_id,
+          student_id: assignment.student_id,
+          status: 'COMPLETED'
+        }
+      });
+
+      return {
+        studentScore: execution?.score || 0,
+        completed: assignment.status === 'COMPLETED',
+        dueDate: assignment.due_date
+      };
+    }
+
+    const groupScores = assignment.group.students
+      .map(student => student.test_executions[0]?.score || 0)
+      .filter(score => score > 0);
+
+    return {
+      studentScore: assignment.student.test_executions[0]?.score || 0,
+      completed: assignment.status === 'COMPLETED',
+      dueDate: assignment.due_date,
+      groupAverage: groupScores.reduce((acc, score) => acc + score, 0) / groupScores.length || 0,
+      groupHighest: Math.max(...groupScores, 0),
+      groupLowest: Math.min(...groupScores.filter(score => score > 0), 100)
+    };
   }
 }

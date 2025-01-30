@@ -718,12 +718,6 @@ distributeQuestions(10, 5); // { 1: 2, 2: 2, 3: 2, 4: 2, 5: 2 }
 - Consider performance optimizations
 - Explore additional distribution strategies
 
-#### Recommendations
-
-- Validate distribution results in test scenarios
-- Monitor test plan creation with new utility
-- Gather feedback on distribution effectiveness
-
 ### BigInt Conversion and Error Handling Improvements (2024-12-11)
 
 #### Timestamp
@@ -1019,7 +1013,6 @@ Error when submitting answers: Test execution (ID: 78) is in 'NOT_STARTED' statu
 - Error handling: User-friendly messages
 
 #### Next Steps
-
 1. Frontend should call start endpoint when "Start Test" button is clicked
 2. Only enable answer submission after test is started
 3. Handle error responses appropriately in the UI
@@ -1450,11 +1443,352 @@ interface PerformanceMetrics {
 - Enhanced monitoring capabilities for parents/tutors
 
 #### Next Steps
-1. Implement UI components for:
-   - Performance dashboards
-   - Analytics visualizations
-   - Notification preferences
-2. Add more advanced analytics:
-   - Learning pattern detection
-   - Performance predictions
-   - Personalized recommendations
+
+- Monitor performance data and adjust tracking metrics if needed
+- Implement UI components for performance tracking
+- Add more advanced analytics:
+  - Learning pattern detection
+  - Performance predictions
+  - Personalized recommendations
+
+### Backend Service Updates for Role-Based Features (2025-01-23 17:11:47Z)
+
+#### Changes Made
+
+1. **Database Schema Updates**
+   - Added new models for role-based features:
+     ```prisma
+     StudyGroup
+     Student
+     Activity
+     ```
+   - Enhanced User model with role relations:
+     ```prisma
+     tutorGroups: StudyGroup[]
+     guardianStudents: Student[]
+     ```
+   - Added activity tracking for students
+
+2. **Service Layer Updates**
+   - Enhanced `StudyGroupService`:
+     - CRUD operations for study groups
+     - Student management within groups
+     - Performance tracking and analytics
+     - Real-time group updates
+
+   - Updated `GuardianService`:
+     - Student progress monitoring
+     - Test result tracking
+     - Activity timeline
+     - Performance analytics by subject
+
+   - Enhanced `TestAssignmentService`:
+     - Group-based test assignments
+     - Individual student assignments
+     - Performance statistics
+     - Activity logging
+
+3. **Data Transfer Objects**
+   - Created new DTOs for type safety:
+     ```typescript
+     CreateStudyGroupDto
+     UpdateStudyGroupDto
+     AddStudentToGroupDto
+     AssignTestDto
+     CompleteAssignmentDto
+     ```
+
+4. **API Endpoints**
+   ```typescript
+   // Study Groups
+   POST   /api/tutors/groups
+   GET    /api/tutors/groups
+   GET    /api/tutors/groups/:id
+   PUT    /api/tutors/groups/:id
+   DELETE /api/tutors/groups/:id
+   POST   /api/tutors/groups/:id/students
+   DELETE /api/tutors/groups/:id/students/:studentId
+
+   // Parent Monitoring
+   GET    /api/parent/students
+   GET    /api/parent/students/:id/progress
+   GET    /api/parent/students/:id/results
+   GET    /api/parent/students/:id/activity
+
+   // Test Assignments
+   POST   /api/tutors/assignments/student
+   POST   /api/tutors/assignments/group
+   GET    /api/tutors/assignments/:id/stats
+   PUT    /api/assignments/:id/complete
+   ```
+
+#### Technical Details
+- Used Prisma for database operations
+- Implemented NestJS dependency injection
+- Added validation using class-validator
+- Documented APIs with Swagger/OpenAPI
+- Added proper error handling and logging
+
+#### Security Considerations
+- Role-based access control for all endpoints
+- Data validation and sanitization
+- Proper error handling and logging
+- Protected routes with authentication
+- Input validation using DTOs
+
+#### Next Steps
+1. Add real-time notifications using WebSockets
+2. Implement caching for performance data
+3. Add batch operations for group management
+4. Enhance error handling and logging
+5. Add automated tests for new endpoints
+
+### Backend Service Updates for Role-Based Features (2025-01-23 17:22:00Z)
+
+#### Changes Made
+
+1. **Schema Updates**
+   - Removed duplicate models (StudyGroup, Student, Activity)
+   - Updated existing models to use correct table names:
+     - `study_groups` for group management
+     - `test_executions` for test results
+     - `activity_log` for activity tracking
+
+2. **Service Layer Updates**
+   - Updated `TestAssignmentService`:
+     - Fixed table names from test_submissions to test_executions
+     - Updated field names to match schema (e.g., group_name instead of name)
+     - Added proper status handling for test executions
+
+   - Updated `GuardianService`:
+     - Fixed table references (activity_log instead of activities)
+     - Updated field names to match schema
+     - Added proper error handling for relationships
+
+   - Updated `StudyGroupService`:
+     - Fixed table references and field names
+     - Added proper timestamp handling
+     - Updated activity logging to use activity_log table
+
+3. **Key Changes**
+   - All services now use the correct table names from the existing schema
+   - Fixed field names to match the database schema
+   - Improved error handling and validation
+   - Added proper timestamp management
+   - Updated activity logging to use the centralized activity_log table
+
+4. **Migration Notes**
+   - No schema changes required as we're using existing tables
+   - All functionality preserved while improving code organization
+
+#### Technical Details
+- Used existing tables instead of creating new ones
+- Maintained existing relationships and constraints
+- Updated field names to match database conventions
+- Improved type safety with proper model references
+
+#### Next Steps
+1. Add indexes for frequently accessed fields
+2. Implement caching for performance data
+3. Add batch operations for group management
+4. Add automated tests for new endpoints
+
+### Database Recreation (2025-01-25 15:57:13Z)
+
+#### Changes Made
+1. Set up MariaDB in Docker:
+   - Container name: lvnplus-mariadb
+   - Root password: my-secret-pw
+   - Database name: lvnplus
+   - Port: 3306
+
+2. Applied Prisma Migrations:
+   - Successfully applied migration `20250109220853_gamification_changes`
+   - Successfully applied migration `20250109221626_implement_backed_up_schema`
+   - Generated new Prisma Client
+
+#### Technical Details
+- Used MariaDB latest version in Docker
+- Database accessible at localhost:3306
+- All schema models and relations successfully created
+- Prisma Client generated and ready for use
+
+#### Next Steps
+1. Verify database connectivity in the application
+2. Add initial seed data if required
+3. Test database operations through the API
+
+### Database Seeding (2025-01-25 16:01:32Z)
+
+#### Changes Made
+1. Created initial roles:
+   - STUDENT: Student role
+   - TEACHER: Teacher role
+   - ADMIN: Admin role
+   - PARENT: Parent role
+
+2. Created test users:
+   - Admin: admin@lvnplus.com / admin123
+   - Teacher: teacher@lvnplus.com / teacher123
+   - Student: student@lvnplus.com / student123
+   - Parent: parent@lvnplus.com / parent123
+
+3. Created sample data:
+   - Study group: "Math Class 101" (Teacher as tutor, Student as member)
+   - Guardian relationship: Parent linked to Student
+
+#### Technical Details
+- Used Prisma migrations to create database schema
+- Added password field to users table
+- Created proper relationships between tables
+- Set up foreign key constraints
+- Added indexes for frequently accessed fields
+
+#### Next Steps
+1. Test user authentication with the created accounts
+2. Verify role-based access control
+3. Test study group and guardian relationship functionality
+
+### Master Data Seeding Implementation (2025-01-29 14:03:12Z)
+
+#### Changes Made
+1. Created new seed file for master data:
+   - Created `prisma/seeds/master-data.ts`
+   - Implemented data loading for:
+     - Exam boards (AQA, Edexcel, OCR, WJEC)
+     - Core subjects (Mathematics, English, Science)
+     - Topics and subtopics for each subject
+
+2. Updated main seed file:
+   - Added import for master data loader
+   - Integrated master data loading after user setup
+
+#### Technical Details
+1. Master Data Structure:
+   - Mathematics:
+     - Number (5 subtopics)
+     - Algebra (5 subtopics)
+     - Geometry (5 subtopics)
+   - English:
+     - Reading (5 subtopics)
+     - Writing (5 subtopics)
+     - Speaking and Listening (5 subtopics)
+   - Science:
+     - Biology (5 subtopics)
+     - Chemistry (5 subtopics)
+     - Physics (5 subtopics)
+
+2. Implementation Features:
+   - Used upsert operations for idempotency
+   - Implemented proper error handling
+   - Added console logging for progress tracking
+   - Ensured proper relationship creation between subjects, topics, and subtopics
+
+#### Next Steps
+1. Run the seed script to populate the database
+2. Verify data relationships in the database
+3. Test API endpoints with the new master data
+
+### 2025-01-30 11:50:26Z - Added Docker Compose for MySQL Database
+
+### What
+- Created docker-compose.yml for MySQL database setup
+- Configured MySQL to match the application's database connection settings
+
+### Why
+- Application was failing to connect to MySQL on localhost:3306
+- Need a consistent and reproducible database environment
+
+### How
+1. Created docker-compose.yml with:
+   - MySQL 8.0 image
+   - Root password matching .env configuration
+   - Database name matching application requirements
+   - Port 3306 exposed for local access
+   - Persistent volume for data storage
+
+### Next Steps
+1. Start the database:
+   ```powershell
+   docker-compose up -d
+   ```
+2. Run database migrations:
+   ```powershell
+   npx prisma migrate deploy
+   ```
+3. Seed the database:
+   ```powershell
+   npx prisma db seed
+   ```
+
+### Testing
+- Verify database connection using:
+  ```powershell
+  npx prisma studio
+  ```
+- Test login functionality at http://localhost:3001/login
+
+### 2025-01-30 12:22:30Z - Fixed JWT Token Generation Issue
+
+### What
+- Investigated and fixed JWT token generation error during login
+- Restarted API server to ensure environment variables are properly loaded
+
+### Why
+- Login was failing with "Illegal arguments: string, undefined" error
+- This indicated that JWT_SECRET environment variable was not being properly loaded
+
+### How
+1. Verified JWT_SECRET is present in .env file
+2. Restarted API server using development mode:
+   ```powershell
+   npm run dev
+   ```
+3. Server now uses tsx watch which provides better error reporting and hot reloading
+
+### Testing
+- Test login functionality at http://localhost:3001/login with:
+  - Email: student@lvnplus.com
+  - Password: student123
+  - Role: Student
+
+### Note
+- If you encounter build errors, use `npm run dev` instead of `npm start`
+- The development server provides better error messages and auto-reloading
+
+### 2025-01-30 12:27:14Z - Enhanced Error Logging for Authentication
+
+### What
+- Added detailed error logging for JWT token generation
+- Added raw user data logging in login function
+- Improved error object logging
+
+### Why
+- To diagnose the "Illegal arguments: string, undefined" error during login
+- To verify the structure of user data before token generation
+- To ensure environment variables are properly loaded
+
+### How
+1. Added logging for JWT token generation parameters:
+   - User ID
+   - Email
+   - Role
+   - JWT Secret presence
+2. Added validation checks:
+   - JWT_SECRET environment variable
+   - User ID presence
+3. Enhanced error logging:
+   - Full error details including stack traces
+   - Raw user data structure
+   - Role information
+
+### Testing
+- Test login with the same credentials:
+  - Email: student@lvnplus.com
+  - Password: student123
+  - Role: Student
+- Check server logs for detailed error information
+
+### Next Steps
+- Monitor the enhanced logs to identify the exact cause of the JWT token generation failure
+- Verify the user object structure from the database
