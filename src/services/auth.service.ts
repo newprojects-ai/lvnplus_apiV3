@@ -23,7 +23,7 @@ export class AuthService {
     const user = await prisma.users.create({
       data: {
         email: data.email,
-        password_hash: hashedPassword,
+        password: hashedPassword,
         first_name: data.firstName,
         last_name: data.lastName,
         user_roles: {
@@ -98,18 +98,18 @@ export class AuthService {
 
       console.log('Password verification:', {
         hasPassword: !!credentials.password,
-        hasHash: !!user.password_hash,
+        hasHash: !!user.password,
         passwordLength: credentials.password?.length,
-        hashLength: user.password_hash?.length
+        hashLength: user.password?.length
       });
 
-      if (!credentials.password || !user.password_hash) {
+      if (!credentials.password || !user.password) {
         throw new UnauthorizedError('Invalid email or password');
       }
 
       const isValidPassword = await bcrypt.compare(
         credentials.password,
-        user.password_hash
+        user.password
       );
 
       if (!isValidPassword) {

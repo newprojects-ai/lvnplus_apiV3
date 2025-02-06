@@ -285,10 +285,9 @@ model activity_log {
 }
 
 model level_config {
-  level       Int       @id
+  level       Int      @id
   xp_required Int
-  perks       String?   @db.Text
-  created_at  DateTime? @default(now()) @db.Timestamp(0)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
 }
 
 enum test_executions_status {

@@ -1792,3 +1792,83 @@ interface PerformanceMetrics {
 ### Next Steps
 - Monitor the enhanced logs to identify the exact cause of the JWT token generation failure
 - Verify the user object structure from the database
+
+### 2025-01-30 12:33:20Z - Fixed Password Field Name Mismatch
+
+### What
+- Fixed password field name mismatch between schema and auth service
+- Updated password verification logic to use correct field name
+- Added more detailed password verification logging
+
+### Why
+- Login was failing because the code was looking for `password_hash` but the field is named `password` in the schema
+- Need to ensure consistent field naming across the application
+- Improve debugging for password verification issues
+
+### How
+1. Updated field names in auth service:
+   - Changed `password_hash` to `password` to match schema
+   - Updated both user creation and login verification
+2. Enhanced password verification logging:
+   - Added checks for password presence
+   - Added length verification
+   - Added hash presence verification
+
+### Testing
+- Test login with:
+  ```
+  Email: student@lvnplus.com
+  Password: student123
+  Role: Student
+  ```
+- Check server logs for password verification details
+- Verify successful login with correct credentials
+
+### 2025-02-06 11:09:18Z - Implemented Question Sets Feature
+
+#### What
+Added Question Sets feature to decouple questions from test plans and provide more flexibility in question selection and test creation.
+
+#### Why
+1. Better organization of questions for tests
+2. More flexible question selection process
+3. Improved reusability of question groups
+4. Foundation for future advanced question selection algorithms
+
+#### Implementation Details
+
+1. Database Changes:
+   - Added `question_sets` table
+   - Added `question_set_items` table
+   - Added `test_plan_question_sets` table
+   - Created appropriate indexes for performance
+
+2. New Components:
+   - QuestionSetService: Manages question set operations
+   - Updated TestPlanService: Integrates with question sets
+   - Updated ExecutionService: Works with question sets for test execution
+
+3. API Endpoints:
+   - POST /api/question-sets: Create new question set
+   - GET /api/question-sets/:id: Get question set details
+   - POST /api/question-sets/:id/link/:testPlanId: Link question set to test plan
+
+4. Flow Changes:
+   - Test Plan Creation:
+     * Questions are now organized into a Question Set
+     * Question Set is linked to Test Plan
+   - Test Execution:
+     * Questions are retrieved from linked Question Set
+     * Execution data structure remains unchanged
+
+#### Testing
+- Verified question set creation
+- Tested linking to test plans
+- Validated test execution flow
+- Confirmed backward compatibility
+
+#### Next Steps
+- [ ] Implement advanced question selection algorithms
+- [ ] Add question set management UI
+- [ ] Add question set analytics
+- [ ] Implement question set sharing between tests

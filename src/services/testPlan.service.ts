@@ -4,6 +4,7 @@ import { CreateTestPlanDTO, UpdateTestPlanDTO, TestPlanResponse } from '../types
 import { NotFoundError, UnauthorizedError, ValidationError } from '../utils/errors';
 import { QuestionService } from './question.service';
 import { questionSelectorService } from './questionSelector.service';
+import { QuestionSetService } from './questionSet.service';
 
 export class TestPlanService {
   async createTestPlan(
@@ -62,6 +63,37 @@ export class TestPlanService {
         }),
         template_id: data.templateId || undefined,
       },
+    });
+
+    // Create question set for this test plan
+    const questionSetService = new QuestionSetService();
+    const questionSet = await questionSetService.createQuestionSet(safePlannerId, {
+      name: `Test Plan ${testPlan.test_plan_id} Question Set`,
+      description: `Questions for Test Plan ${testPlan.test_plan_id}`,
+      metadata: {
+        testPlanId: testPlan.test_plan_id,
+        testType: data.testType,
+        topics: topicIds.map(id => id.toString()),
+        subtopics: subtopicIds.map(id => id.toString()),
+      },
+      questions: randomQuestions.map((q, index) => ({
+        questionId: Number(q.question_id),
+        sequence: index + 1,
+      })),
+    });
+
+    // Link question set to test plan
+    await questionSetService.linkToTestPlan(
+      BigInt(testPlan.test_plan_id),
+      BigInt(questionSet.setId),
+      1
+    );
+
+    console.log('Test plan and question set created', {
+      testPlanId: testPlan.test_plan_id,
+      questionSetId: questionSet.setId,
+      selectedQuestionsCount: randomQuestions.length,
+      totalQuestionCount,
     });
 
     // Create test execution for the test plan

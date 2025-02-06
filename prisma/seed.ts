@@ -21,6 +21,30 @@ async function main() {
 
   console.log('Roles seeded successfully');
 
+  // Seed level configurations
+  const levelConfigs = [
+    { level: 1, xp_required: 1000 },
+    { level: 2, xp_required: 2000 },
+    { level: 3, xp_required: 3500 },
+    { level: 4, xp_required: 5500 },
+    { level: 5, xp_required: 8000 },
+    { level: 6, xp_required: 11000 },
+    { level: 7, xp_required: 14500 },
+    { level: 8, xp_required: 18500 },
+    { level: 9, xp_required: 23000 },
+    { level: 10, xp_required: 28000 },
+  ];
+
+  for (const config of levelConfigs) {
+    await prisma.level_config.upsert({
+      where: { level: config.level },
+      update: config,
+      create: config,
+    });
+  }
+
+  console.log('Level configurations seeded successfully');
+
   // Create admin user
   const adminPassword = await bcrypt.hash('admin123', 10);
   const admin = await prisma.users.upsert({

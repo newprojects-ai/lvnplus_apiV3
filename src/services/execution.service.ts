@@ -13,6 +13,7 @@ import {
   BadRequestError
 } from '../utils/errors';
 import { GamificationService } from './gamification.service';
+import { QuestionSetService } from './questionSet.service';
 
 interface ExecutionWithPlan extends Prisma.test_executions {
   test_plans: Prisma.test_plans;
@@ -25,9 +26,11 @@ interface TestData {
 
 export class TestExecutionService {
   private gamificationService: GamificationService;
+  private questionSetService: QuestionSetService;
 
   constructor() {
     this.gamificationService = new GamificationService();
+    this.questionSetService = new QuestionSetService();
   }
 
   // Utility function to safely convert to BigInt
@@ -90,6 +93,63 @@ export class TestExecutionService {
       data: {
         status: 'IN_PROGRESS',
         started_at: new Date(),
+      },
+    });
+
+    return this.formatExecutionResponse(updatedExecution);
+  }
+
+  async startExecutionWithQuestionSet(executionId: bigint): Promise<TestExecutionResponse> {
+    const execution = await prisma.test_executions.findUnique({
+      where: { execution_id: executionId },
+      include: {
+        test_plans: {
+          include: {
+            test_plan_question_sets: {
+              include: {
+                question_sets: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!execution) {
+      throw new NotFoundError('Test execution not found');
+    }
+
+    if (execution.status !== 'NOT_STARTED') {
+      throw new ValidationError('Test execution has already started');
+    }
+
+    // Get questions from the linked question set
+    const questionSetLink = execution.test_plans.test_plan_question_sets[0];
+    if (!questionSetLink) {
+      throw new ValidationError('No question set linked to this test plan');
+    }
+
+    const questionSet = await this.questionSetService.getQuestionSet(BigInt(questionSetLink.set_id));
+
+    // Update execution with questions from question set
+    const updatedExecution = await prisma.test_executions.update({
+      where: { execution_id: executionId },
+      data: {
+        status: 'IN_PROGRESS',
+        started_at: new Date(),
+        test_data: JSON.stringify({
+          questions: questionSet.questions.map(q => ({
+            question_id: q.questionId,
+            question_text: q.questionText,
+            difficulty_level: q.difficultyLevel,
+          })),
+          responses: questionSet.questions.map(q => ({
+            question_id: q.questionId,
+            student_answer: null,
+            is_correct: null,
+            time_spent: 0
+          })),
+        }),
       },
     });
 
