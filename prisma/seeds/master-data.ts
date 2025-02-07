@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, exam_boards_input_type } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -6,16 +6,16 @@ async function loadMasterData() {
   try {
     // Create exam boards
     const examBoards = [
-      { name: 'AQA', description: 'Assessment and Qualifications Alliance' },
-      { name: 'Edexcel', description: 'Pearson Edexcel Examinations' },
-      { name: 'OCR', description: 'Oxford, Cambridge and RSA Examinations' },
-      { name: 'WJEC', description: 'Welsh Joint Education Committee' }
+      { board_name: 'AQA', description: 'Assessment and Qualifications Alliance', input_type: exam_boards_input_type.MCQ },
+      { board_name: 'Edexcel', description: 'Pearson Edexcel Examinations', input_type: exam_boards_input_type.MCQ },
+      { board_name: 'OCR', description: 'Oxford, Cambridge and RSA Examinations', input_type: exam_boards_input_type.MCQ },
+      { board_name: 'WJEC', description: 'Welsh Joint Education Committee', input_type: exam_boards_input_type.MCQ }
     ];
 
     console.log('Loading exam boards...');
     for (const board of examBoards) {
       await prisma.exam_boards.upsert({
-        where: { name: board.name },
+        where: { board_name: board.board_name },
         update: { description: board.description },
         create: board
       });
@@ -23,16 +23,16 @@ async function loadMasterData() {
 
     // Create main subjects
     const subjects = [
-      { name: 'Mathematics', description: 'Core mathematics curriculum' },
-      { name: 'English', description: 'English language and literature' },
-      { name: 'Science', description: 'Combined and separate sciences' }
+      { subject_name: 'Mathematics', description: 'Core mathematics curriculum' },
+      { subject_name: 'English', description: 'English language and literature' },
+      { subject_name: 'Science', description: 'Combined and separate sciences' }
     ];
 
     console.log('Loading subjects...');
     const createdSubjects = await Promise.all(
       subjects.map(async (subject) => {
         return await prisma.subjects.upsert({
-          where: { name: subject.name },
+          where: { subject_name: subject.subject_name },
           update: { description: subject.description },
           create: subject
         });
@@ -42,160 +42,103 @@ async function loadMasterData() {
     // Create topics and subtopics for Mathematics
     const mathsTopics = [
       {
-        name: 'Number',
+        topic_name: 'Number',
         description: 'Number operations and properties',
         subtopics: [
           'Integers and place value',
           'Decimals',
           'Fractions',
           'Percentages',
-          'Ratio and proportion'
+          'Powers and roots',
+          'Factors and multiples'
         ]
       },
       {
-        name: 'Algebra',
+        topic_name: 'Algebra',
         description: 'Algebraic operations and equations',
         subtopics: [
-          'Expressions and formulae',
+          'Expressions and substitution',
           'Equations and inequalities',
           'Sequences',
-          'Linear graphs',
-          'Quadratic equations'
-        ]
-      },
-      {
-        name: 'Geometry',
-        description: 'Shapes, space and measures',
-        subtopics: [
-          'Properties of shapes',
-          'Angles',
-          'Area and perimeter',
-          'Volume and surface area',
-          'Transformations'
+          'Graphs',
+          'Functions'
         ]
       }
     ];
 
     console.log('Loading mathematics topics and subtopics...');
-    const mathsSubject = createdSubjects.find(s => s.name === 'Mathematics');
-    if (mathsSubject) {
-      for (const topic of mathsTopics) {
-        const createdTopic = await prisma.topics.upsert({
-          where: {
-            name_subject_id: {
-              name: topic.name,
-              subject_id: mathsSubject.subject_id
-            }
-          },
-          update: { description: topic.description },
-          create: {
-            name: topic.name,
-            description: topic.description,
-            subject_id: mathsSubject.subject_id
-          }
-        });
+    const mathsSubject = createdSubjects.find(s => s.subject_name === 'Mathematics');
+    if (!mathsSubject) throw new Error('Mathematics subject not found');
 
-        // Create subtopics
-        for (const subtopicName of topic.subtopics) {
-          await prisma.subtopics.upsert({
-            where: {
-              name_topic_id: {
-                name: subtopicName,
-                topic_id: createdTopic.topic_id
-              }
-            },
-            update: {},
-            create: {
-              name: subtopicName,
-              topic_id: createdTopic.topic_id
-            }
-          });
+    for (const topic of mathsTopics) {
+      await prisma.topics.create({
+        data: {
+          topic_name: topic.topic_name,
+          description: topic.description,
+          subject_id: mathsSubject.subject_id,
+          subtopics: {
+            create: topic.subtopics.map(subtopicName => ({
+              subtopic_name: subtopicName,
+              description: `${subtopicName} in ${topic.topic_name}`
+            }))
+          }
         }
-      }
+      });
     }
 
     // Create topics and subtopics for English
     const englishTopics = [
       {
-        name: 'Reading',
-        description: 'Comprehension and analysis',
+        topic_name: 'Reading',
+        description: 'Reading comprehension and analysis',
         subtopics: [
           'Understanding texts',
+          'Inference and deduction',
           'Language analysis',
           'Structure analysis',
-          'Comparison skills',
-          'Critical evaluation'
+          'Comparison skills'
         ]
       },
       {
-        name: 'Writing',
-        description: 'Written communication',
+        topic_name: 'Writing',
+        description: 'Writing skills and techniques',
         subtopics: [
           'Creative writing',
           'Descriptive writing',
           'Persuasive writing',
-          'Technical accuracy',
-          'Planning and structure'
-        ]
-      },
-      {
-        name: 'Speaking and Listening',
-        description: 'Verbal communication',
-        subtopics: [
-          'Presentation skills',
-          'Group discussion',
-          'Listening skills',
-          'Verbal analysis',
-          'Drama and role-play'
+          'Technical writing',
+          'Essay writing'
         ]
       }
     ];
 
     console.log('Loading English topics and subtopics...');
-    const englishSubject = createdSubjects.find(s => s.name === 'English');
-    if (englishSubject) {
-      for (const topic of englishTopics) {
-        const createdTopic = await prisma.topics.upsert({
-          where: {
-            name_subject_id: {
-              name: topic.name,
-              subject_id: englishSubject.subject_id
-            }
-          },
-          update: { description: topic.description },
-          create: {
-            name: topic.name,
-            description: topic.description,
-            subject_id: englishSubject.subject_id
-          }
-        });
+    const englishSubject = createdSubjects.find(s => s.subject_name === 'English');
+    if (!englishSubject) throw new Error('English subject not found');
 
-        // Create subtopics
-        for (const subtopicName of topic.subtopics) {
-          await prisma.subtopics.upsert({
-            where: {
-              name_topic_id: {
-                name: subtopicName,
-                topic_id: createdTopic.topic_id
-              }
-            },
-            update: {},
-            create: {
-              name: subtopicName,
-              topic_id: createdTopic.topic_id
-            }
-          });
+    for (const topic of englishTopics) {
+      await prisma.topics.create({
+        data: {
+          topic_name: topic.topic_name,
+          description: topic.description,
+          subject_id: englishSubject.subject_id,
+          subtopics: {
+            create: topic.subtopics.map(subtopicName => ({
+              subtopic_name: subtopicName,
+              description: `${subtopicName} in ${topic.topic_name}`
+            }))
+          }
         }
-      }
+      });
     }
 
     // Create topics and subtopics for Science
     const scienceTopics = [
       {
-        name: 'Biology',
+        topic_name: 'Biology',
         description: 'Living organisms and life processes',
         subtopics: [
-          'Cells and organisation',
+          'Cells and organization',
           'Photosynthesis',
           'Respiration',
           'Inheritance',
@@ -203,73 +146,42 @@ async function loadMasterData() {
         ]
       },
       {
-        name: 'Chemistry',
-        description: 'Matter and chemical reactions',
+        topic_name: 'Chemistry',
+        description: 'Matter, materials and reactions',
         subtopics: [
           'Atomic structure',
           'Chemical reactions',
           'Periodic table',
-          'Materials',
-          'Rates of reaction'
-        ]
-      },
-      {
-        name: 'Physics',
-        description: 'Energy, forces and the universe',
-        subtopics: [
-          'Forces and motion',
-          'Energy transfers',
-          'Waves',
-          'Electricity',
-          'Magnetism'
+          'Acids and bases',
+          'Energy changes'
         ]
       }
     ];
 
     console.log('Loading Science topics and subtopics...');
-    const scienceSubject = createdSubjects.find(s => s.name === 'Science');
-    if (scienceSubject) {
-      for (const topic of scienceTopics) {
-        const createdTopic = await prisma.topics.upsert({
-          where: {
-            name_subject_id: {
-              name: topic.name,
-              subject_id: scienceSubject.subject_id
-            }
-          },
-          update: { description: topic.description },
-          create: {
-            name: topic.name,
-            description: topic.description,
-            subject_id: scienceSubject.subject_id
-          }
-        });
+    const scienceSubject = createdSubjects.find(s => s.subject_name === 'Science');
+    if (!scienceSubject) throw new Error('Science subject not found');
 
-        // Create subtopics
-        for (const subtopicName of topic.subtopics) {
-          await prisma.subtopics.upsert({
-            where: {
-              name_topic_id: {
-                name: subtopicName,
-                topic_id: createdTopic.topic_id
-              }
-            },
-            update: {},
-            create: {
-              name: subtopicName,
-              topic_id: createdTopic.topic_id
-            }
-          });
+    for (const topic of scienceTopics) {
+      await prisma.topics.create({
+        data: {
+          topic_name: topic.topic_name,
+          description: topic.description,
+          subject_id: scienceSubject.subject_id,
+          subtopics: {
+            create: topic.subtopics.map(subtopicName => ({
+              subtopic_name: subtopicName,
+              description: `${subtopicName} in ${topic.topic_name}`
+            }))
+          }
         }
-      }
+      });
     }
 
-    console.log('Master data loaded successfully!');
+    console.log('Master data loaded successfully');
   } catch (error) {
     console.error('Error loading master data:', error);
     throw error;
-  } finally {
-    await prisma.$disconnect();
   }
 }
 

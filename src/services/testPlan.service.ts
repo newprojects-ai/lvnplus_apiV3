@@ -133,7 +133,7 @@ export class TestPlanService {
     const completeTestPlan = await prisma.test_plans.findUnique({
       where: { test_plan_id: testPlan.test_plan_id },
       include: {
-        users_test_plans_student_idTousers: {
+        student: {
           select: {
             user_id: true,
             email: true,
@@ -185,7 +185,7 @@ export class TestPlanService {
     const testPlan = await prisma.test_plans.findUnique({
       where: { test_plan_id: testPlanId },
       include: {
-        users_test_plans_student_idTousers: {
+        student: {
           select: {
             user_id: true,
             email: true,
@@ -271,7 +271,7 @@ export class TestPlanService {
 
   private getTestPlanIncludes() {
     return {
-      users_test_plans_student_idTousers: {
+      student: {
         select: {
           user_id: true,
           email: true,
@@ -313,10 +313,10 @@ export class TestPlanService {
       timingType: testPlan.timing_type,
       timeLimit: testPlan.time_limit,
       student: {
-        userId: testPlan.users_test_plans_student_idTousers.user_id,
-        email: testPlan.users_test_plans_student_idTousers.email,
-        firstName: testPlan.users_test_plans_student_idTousers.first_name,
-        lastName: testPlan.users_test_plans_student_idTousers.last_name,
+        userId: testPlan.student.user_id,
+        email: testPlan.student.email,
+        firstName: testPlan.student.first_name,
+        lastName: testPlan.student.last_name,
       },
       plannedBy: testPlan.planned_by,
       plannedAt: testPlan.planned_at,

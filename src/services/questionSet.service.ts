@@ -79,7 +79,7 @@ export class QuestionSetService {
       include: {
         question_set_items: {
           include: {
-            questions: true,
+            question: true,
           },
           orderBy: {
             sequence: 'asc',
@@ -103,8 +103,8 @@ export class QuestionSetService {
       questions: questionSet.question_set_items.map(item => ({
         questionId: Number(item.question_id),
         sequence: item.sequence,
-        questionText: item.questions.question_text,
-        difficultyLevel: Number(item.questions.difficulty_level),
+        questionText: item.question.question_text,
+        difficultyLevel: Number(item.question.difficulty_level),
       })),
     };
   }

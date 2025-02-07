@@ -480,9 +480,11 @@ export class TestExecutionService {
 
     // Fetch the test plan with all related users
     const testPlan = await prisma.test_plans.findUnique({
-      where: { test_plan_id: safePlanId },
+      where: {
+        test_plan_id: safePlanId
+      },
       include: {
-        users_test_plans_student_idTousers: {
+        student: {
           select: {
             user_id: true,
             email: true,
@@ -490,7 +492,7 @@ export class TestExecutionService {
             last_name: true
           }
         },
-        users_test_plans_planned_byTousers: {
+        planner: {
           select: {
             user_id: true,
             email: true,
@@ -504,17 +506,17 @@ export class TestExecutionService {
           orderBy: { execution_id: 'desc' },
           take: 1
         }
-      },
+      }
     });
 
     // Enhanced logging for student_id
     console.log('Creating test execution', {
       testPlanId: safePlanId.toString(),
-      planStudentId: testPlan?.student_id?.toString(),
+      planStudentId: testPlan?.student?.user_id?.toString(),
       currentUserId: safeUserId.toString(),
       studentDetails: {
-        id: testPlan?.users_test_plans_student_idTousers?.user_id,
-        email: testPlan?.users_test_plans_student_idTousers?.email
+        id: testPlan?.student?.user_id,
+        email: testPlan?.student?.email
       }
     });
 
@@ -540,8 +542,8 @@ export class TestExecutionService {
     };
 
     // Extract student and planner user IDs
-    const studentUserIds = extractUserIds(testPlan.users_test_plans_student_idTousers);
-    const plannedByUserIds = extractUserIds(testPlan.users_test_plans_planned_byTousers);
+    const studentUserIds = extractUserIds(testPlan.student);
+    const plannedByUserIds = extractUserIds(testPlan.planner);
 
     // Check user authorization
     const isAuthorized = studentUserIds.some(id => id === safeUserId) || 
@@ -575,7 +577,7 @@ export class TestExecutionService {
     const newExecution = await prisma.test_executions.create({
       data: {
         test_plan_id: safePlanId,
-        student_id: testPlan.student_id || safeUserId,  // Use student_id from test plan or current user
+        student_id: testPlan.student?.user_id || safeUserId,  // Use student_id from test plan or current user
         status: 'NOT_STARTED',
         test_data: JSON.stringify({
           questions: selectedQuestions.map(q => ({
@@ -803,7 +805,7 @@ export class TestExecutionService {
         include: {
           test_plans: {
             include: {
-              users_test_plans_student_idTousers: true // Include student details
+              student: true // Include student details
             }
           }
         }
@@ -1165,6 +1167,34 @@ export class TestExecutionService {
     return allAnswered ? 'COMPLETED' : 'IN_PROGRESS';
   }
 
+  private formatTestExecutionResponse(execution: ExecutionWithPlan): TestExecutionResponse {
+    const testPlan = execution.test_plans;
+    return {
+      executionId: execution.execution_id,
+      testPlanId: execution.test_plan_id,
+      studentId: execution.student_id,
+      status: execution.status,
+      startedAt: execution.started_at,
+      completedAt: execution.completed_at,
+      score: execution.score,
+      testData: execution.test_data,
+      student: testPlan?.student ? {
+        userId: testPlan.student.user_id,
+        email: testPlan.student.email,
+        firstName: testPlan.student.first_name,
+        lastName: testPlan.student.last_name
+      } : undefined,
+      planner: testPlan?.planner ? {
+        userId: testPlan.planner.user_id,
+        email: testPlan.planner.email,
+        firstName: testPlan.planner.first_name,
+        lastName: testPlan.planner.last_name
+      } : undefined,
+      template: testPlan?.test_templates,
+      examBoard: testPlan?.exam_boards
+    };
+  }
+
   private formatExecutionResponse(execution: ExecutionWithPlan): TestExecutionResponse {
     // Pass through the test_data exactly as stored in the database
     let testData;
@@ -1200,19 +1230,6 @@ export class TestExecutionService {
       status: execution.status,
       startedAt: execution.started_at || undefined,
       testData: testData // Pass through the data exactly as stored
-    };
-  }
-
-  private formatTestExecutionResponse(execution: ExecutionWithPlan): TestExecutionResponse {
-    return {
-      executionId: execution.execution_id,
-      testPlanId: execution.test_plan_id,
-      status: execution.status,
-      startedAt: execution.started_at,
-      completedAt: execution.completed_at,
-      pausedAt: execution.paused_at,
-      score: execution.score,
-      testData: JSON.parse(execution.test_data),
     };
   }
 }
