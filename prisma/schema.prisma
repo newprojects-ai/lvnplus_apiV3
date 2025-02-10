@@ -136,6 +136,9 @@ model test_plans {
   time_limit                         Int?
   student_id                         BigInt
   planned_by                         BigInt
+  planned_by_type                    String?                // "PARENT", "TUTOR", "SYSTEM"
+  student_guardian_id                BigInt?                
+  tutor_student_id                   BigInt?                // For tutor-assigned tests
   planned_at                         DateTime?              @default(now()) @db.Timestamp(0)
   configuration                      String                 @db.LongText
   
@@ -148,11 +151,15 @@ model test_plans {
   study_groups                      study_groups[]         @relation("GroupTests")
   assignments                       test_assignments[]
   question_set_links               test_plan_question_sets[]
+  student_guardian                 student_guardians?      @relation(fields: [student_guardian_id], references: [id])
+  tutor_student                    tutor_students?         @relation(fields: [tutor_student_id], references: [id])
 
   @@index([template_id])
   @@index([board_id])
   @@index([student_id])
   @@index([planned_by])
+  @@index([student_guardian_id])
+  @@index([tutor_student_id])
 }
 
 model test_templates {
@@ -223,10 +230,12 @@ model users {
   student_progress                   student_progress?
   activity_logs                      activity_log[]
   student_rewards                    student_rewards[]
-  guardian_relationships             student_guardians[]   @relation("guardian_relationships")
-  student_relationships              student_guardians[]   @relation("student_relationships")
+  guardians_of                       student_guardians[]    @relation("student_guardian_guardian")
+  guarded_by                         student_guardians[]    @relation("student_guardian_student")
   assignments_created                test_assignments[]    @relation("assignment_creators")
   assignments_received               test_assignments[]    @relation("assigned_students")
+  students_as_tutor                  tutor_students[]      @relation("tutor_students_tutor")
+  tutors_as_student                  tutor_students[]      @relation("tutor_students_student")
 
   @@map("users")
 }
@@ -346,6 +355,24 @@ model level_config {
   created_at  DateTime @default(now()) @db.Timestamp(0)
 }
 
+model tutor_students {
+  id            BigInt      @id @default(autoincrement())
+  tutor_id      BigInt      
+  student_id    BigInt      
+  status        TutorStudentStatus @default(ACTIVE)
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
+  
+  // Relations
+  tutor         users       @relation("tutor_students_tutor", fields: [tutor_id], references: [user_id])
+  student       users       @relation("tutor_students_student", fields: [student_id], references: [user_id])
+  test_plans    test_plans[]
+
+  @@index([tutor_id])
+  @@index([student_id])
+  @@unique([tutor_id, student_id], name: "unique_tutor_student")
+}
+
 enum test_executions_status {
   NOT_STARTED
   IN_PROGRESS
@@ -402,6 +429,11 @@ enum TestAssignmentStatus {
   OVERDUE
 }
 
+enum TutorStudentStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model study_groups {
   group_id    BigInt      @id @default(autoincrement())
   group_name  String      @db.VarChar(255)
@@ -421,21 +453,18 @@ model study_groups {
 }
 
 model student_guardians {
-  relationship_id   BigInt                @id @default(autoincrement())
-  guardian_id       BigInt
-  student_id        BigInt
-  relationship_type GuardianRelationType
-  status           GuardianRelationStatus @default(PENDING)
-  created_at       DateTime?              @default(now()) @db.Timestamp(0)
-  updated_at       DateTime?              @default(now()) @db.Timestamp(0)
-  
-  // Relations
-  guardian         users                  @relation("guardian_relationships", fields: [guardian_id], references: [user_id])
-  student          users                  @relation("student_relationships", fields: [student_id], references: [user_id])
+  id            BigInt      @id @default(autoincrement())
+  student_id    BigInt      
+  guardian_id   BigInt      
+  relationship  String      // e.g., "PARENT", "GUARDIAN"
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
+  student       users       @relation("student_guardian_student", fields: [student_id], references: [user_id])
+  guardian      users       @relation("student_guardian_guardian", fields: [guardian_id], references: [user_id])
+  test_plans    test_plans[]  
 
-  @@unique([guardian_id, student_id], map: "unique_guardian_student")
-  @@index([guardian_id])
   @@index([student_id])
+  @@index([guardian_id])
 }
 
 model group_members {

@@ -1848,51 +1848,140 @@ interface PerformanceMetrics {
 - Check server logs for password verification details
 - Verify successful login with correct credentials
 
-### 2025-02-06 11:09:18Z - Implemented Question Sets Feature
+### NestJS and Swagger Implementation (2025-02-09 21:54:43Z)
 
 #### What
-Added Question Sets feature to decouple questions from test plans and provide more flexibility in question selection and test creation.
+Implemented NestJS controllers with Swagger documentation for all API endpoints.
+
+1. Updated Controllers:
+   - `TutorController`: Added NestJS decorators and Swagger docs
+   - `ParentController`: Added NestJS decorators and Swagger docs
+   - Created proper dependency injection
+
+2. Added Swagger Documentation:
+   - Created comprehensive API schemas
+   - Added endpoint descriptions
+   - Documented request/response types
+   - Added authentication requirements
 
 #### Why
-1. Better organization of questions for tests
-2. More flexible question selection process
-3. Improved reusability of question groups
-4. Foundation for future advanced question selection algorithms
+- Provide interactive API documentation
+- Ensure type safety with TypeScript
+- Follow NestJS best practices
+- Make API testing easier
 
-#### Implementation Details
+#### How
+1. Controller Updates:
+   - Added `@Controller` decorators
+   - Implemented proper dependency injection
+   - Added route decorators
+   - Added Swagger decorators
 
-1. Database Changes:
-   - Added `question_sets` table
-   - Added `question_set_items` table
-   - Added `test_plan_question_sets` table
-   - Created appropriate indexes for performance
+2. Documentation Structure:
+   ```typescript
+   @ApiTags('Tutors')
+   @ApiBearerAuth()
+   @UseGuards(JwtAuthGuard)
+   @Controller('api/tutors')
+   export class TutorController {
+     @Get('students')
+     @ApiOperation({ summary: 'Get all linked students' })
+     @ApiResponse({ ... })
+     async getLinkedStudents() { ... }
+   }
+   ```
 
-2. New Components:
-   - QuestionSetService: Manages question set operations
-   - Updated TestPlanService: Integrates with question sets
-   - Updated ExecutionService: Works with question sets for test execution
+3. Authentication:
+   - Added JWT guard
+   - Implemented bearer token auth
+   - Added auth decorators
 
-3. API Endpoints:
-   - POST /api/question-sets: Create new question set
-   - GET /api/question-sets/:id: Get question set details
-   - POST /api/question-sets/:id/link/:testPlanId: Link question set to test plan
+#### Technical Details
+1. API Endpoints:
+   - Tutor endpoints: `/api/tutors/*`
+   - Parent endpoints: `/api/parents/*`
+   - All endpoints require JWT auth
 
-4. Flow Changes:
-   - Test Plan Creation:
-     * Questions are now organized into a Question Set
-     * Question Set is linked to Test Plan
-   - Test Execution:
-     * Questions are retrieved from linked Question Set
-     * Execution data structure remains unchanged
+2. Swagger UI:
+   - URL: http://localhost:3000/api-docs
+   - Interactive documentation
+   - Try-it-out functionality
+   - Bearer token support
 
-#### Testing
-- Verified question set creation
-- Tested linking to test plans
-- Validated test execution flow
-- Confirmed backward compatibility
+3. Response Types:
+   - Proper TypeScript interfaces
+   - Documented schemas
+   - Error responses
 
 #### Next Steps
-- [ ] Implement advanced question selection algorithms
-- [ ] Add question set management UI
-- [ ] Add question set analytics
-- [ ] Implement question set sharing between tests
+1. Add request validation
+2. Implement rate limiting
+3. Add response caching
+4. Add API versioning
+
+### NestJS Auth Module Implementation (2025-02-10 16:09:08Z)
+
+#### What
+Implemented proper NestJS authentication module and updated controllers.
+
+1. Auth Controller:
+   - Converted to NestJS controller with decorators
+   - Added Swagger documentation
+   - Improved error handling
+   - Added proper response types
+
+2. Auth Module:
+   - Created AuthModule with proper structure
+   - Added module to AppModule imports
+   - Configured providers and exports
+
+#### Why
+- Fix 404 errors for auth endpoints
+- Improve API documentation
+- Better error handling
+- Proper NestJS architecture
+
+#### How
+1. Updated Auth Controller:
+   ```typescript
+   @Controller('auth')
+   export class AuthController {
+     @Post('login')
+     async login(@Body() credentials: LoginUserDTO, @Res() res: Response) {
+       const { user, token } = await this.authService.login(credentials);
+       return res.status(HttpStatus.OK).json({
+         message: 'Login successful',
+         user,
+         token,
+       });
+     }
+   }
+   ```
+
+2. Created Auth Module:
+   ```typescript
+   @Module({
+     controllers: [AuthController],
+     providers: [AuthService],
+     exports: [AuthService],
+   })
+   export class AuthModule {}
+   ```
+
+#### Technical Details
+1. Controller Features:
+   - Proper route decorators
+   - Request validation
+   - Response serialization
+   - Cookie handling
+
+2. Module Configuration:
+   - Dependency injection
+   - Service providers
+   - Module exports
+
+#### Next Steps
+1. Add auth guards
+2. Implement refresh tokens
+3. Add rate limiting
+4. Enhance validation
