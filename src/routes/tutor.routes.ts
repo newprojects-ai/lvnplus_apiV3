@@ -3,6 +3,8 @@ import { TutorController } from '../controllers/tutor.controller';
 import { asyncHandler } from '../middleware/async';
 import { authenticate } from '../middleware/auth';
 import { checkRole } from '../middleware/roles';
+import { validateRequest } from '../middleware/validation';
+import { tutorLinkSchema } from '../validation/tutor.validation';
 
 const router = express.Router();
 const tutorController = new TutorController();
@@ -12,9 +14,25 @@ router.use(authenticate);
 router.use(checkRole(['TUTOR']));
 
 // Student Management
+router.post(
+  '/students/link-request',
+  validateRequest(tutorLinkSchema),
+  asyncHandler(tutorController.requestStudentLink)
+);
+
+router.delete(
+  '/:tutorId/students/:studentId',
+  asyncHandler(tutorController.removeStudentLink)
+);
+
 router.get('/students', asyncHandler(tutorController.getLinkedStudents));
-router.post('/students', asyncHandler(tutorController.linkStudent));
-router.delete('/students/:id', asyncHandler(tutorController.unlinkStudent));
+
+// Student routes (require student role)
+router.post(
+  '/confirm-tutor/:linkId',
+  validateRequest({ accepted: 'boolean|required' }),
+  asyncHandler(tutorController.confirmLink)
+);
 
 // Group Management
 router.post('/groups', asyncHandler(tutorController.createGroup));

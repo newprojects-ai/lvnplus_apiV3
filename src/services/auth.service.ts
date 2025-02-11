@@ -195,12 +195,26 @@ export class AuthService {
   }
 
   private formatUserResponse(user: any) {
+    console.log('Formatting user response:', user);
+    
+    const roles = user.user_roles.map((ur: any) => ur.roles.role_name);
+    console.log('Extracted roles:', roles);
+    
+    // Convert roles to title case (e.g., 'STUDENT' -> 'Student')
+    const normalizedRoles = roles.map((role: string) => 
+      role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()
+    );
+    console.log('Normalized roles:', normalizedRoles);
+
     return {
-      id: user.user_id.toString(),
+      id: user.user_id,
       email: user.email,
       firstName: user.first_name,
       lastName: user.last_name,
-      roles: user.user_roles.map((ur: any) => ur.roles.role_name.toUpperCase()), // Normalize to uppercase
+      roles: normalizedRoles,
+      active: user.active,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at
     };
   }
 }

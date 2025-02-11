@@ -133,3 +133,47 @@ export const getTestResults = async (
     next(error);
   }
 };
+
+export const completeTest = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { executionId } = req.params;
+    const userId = req.user?.id;
+    const timingData = req.body.timingData;
+
+    const result = await testService.completeTest(
+      BigInt(executionId),
+      userId,
+      timingData
+    );
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const submitAllAnswers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { executionId } = req.params;
+    const userId = req.user?.id;
+    const data = req.body;
+
+    const result = await testService.submitAllAnswers(
+      BigInt(executionId),
+      userId,
+      data
+    );
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+};

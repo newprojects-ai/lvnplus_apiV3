@@ -243,6 +243,52 @@ export class TestService {
     return this.formatExecutionResponse(updatedExecution);
   }
 
+  async submitAllAnswers(
+    executionId: bigint,
+    userId: bigint,
+    data: {
+      responses: Array<{
+        questionId: number;
+        answer: string;
+        timeTaken: number;
+      }>;
+      endTime: number;
+    }
+  ): Promise<TestExecutionResponse> {
+    const execution = await this.findExecutionWithAccess(executionId, userId);
+
+    if (execution.status !== 'IN_PROGRESS') {
+      throw new ValidationError('Test is not in progress');
+    }
+
+    const testData = JSON.parse(execution.test_data);
+    
+    // Update responses with validation and scoring
+    testData.responses = data.responses.map(response => ({
+      questionId: BigInt(response.questionId),
+      answer: response.answer,
+      timeSpent: response.timeTaken
+    }));
+
+    const scoringResult = this.validateAndScoreResponses(testData);
+    
+    // Update test data with scoring information
+    testData.responses = scoringResult.responses;
+    testData.total_correct = scoringResult.total_correct;
+    testData.total_questions = scoringResult.total_questions;
+    testData.score = scoringResult.score;
+
+    const updatedExecution = await prisma.test_executions.update({
+      where: { execution_id: executionId },
+      data: {
+        test_data: JSON.stringify(testData),
+        score: scoringResult.score // Update the score column
+      }
+    });
+
+    return this.formatExecutionResponse(updatedExecution);
+  }
+
   async getTestStatus(
     executionId: bigint,
     userId: bigint
@@ -277,6 +323,105 @@ export class TestService {
       correctAnswers: analysis.correctAnswers,
       timeSpent: analysis.totalTimeSpent,
       questionAnalysis: analysis.questionAnalysis,
+    };
+  }
+
+  async completeTest(
+    executionId: bigint,
+    userId: bigint,
+    timingData: {
+      endTime: number;
+      startTime: number;
+      TotalTimeTaken: number;
+      testTotalTimeTaken: number;
+    }
+  ): Promise<TestExecutionResponse> {
+    const execution = await this.findExecutionWithAccess(executionId, userId);
+
+    if (execution.status !== 'IN_PROGRESS') {
+      throw new ValidationError('Test is not in progress');
+    }
+
+    const testData = JSON.parse(execution.test_data);
+    
+    // Update timing information
+    testData.timing = {
+      ...testData.timing,
+      ...timingData,
+      completedAt: new Date().toISOString()
+    };
+
+    // Make sure responses are scored if not already
+    if (!testData.score) {
+      const scoringResult = this.validateAndScoreResponses(testData);
+      testData.responses = scoringResult.responses;
+      testData.total_correct = scoringResult.total_correct;
+      testData.total_questions = scoringResult.total_questions;
+      testData.score = scoringResult.score;
+    }
+
+    const updatedExecution = await prisma.test_executions.update({
+      where: { execution_id: executionId },
+      data: {
+        status: 'COMPLETED',
+        completed_at: new Date(),
+        score: testData.score,
+        test_data: JSON.stringify(testData)
+      },
+      include: {
+        test_plans: true
+      }
+    });
+
+    return this.formatExecutionResponse(updatedExecution);
+  }
+
+  private validateAndScoreResponses(testData: any) {
+    console.log('Validating and scoring responses:', JSON.stringify(testData, null, 2));
+    
+    let correctCount = 0;
+    const scoredResponses = testData.responses.map((response: any) => {
+      const question = testData.questions.find(
+        (q: any) => BigInt(q.question_id) === BigInt(response.questionId)
+      );
+
+      const isCorrect = question && 
+        String(response.answer).toLowerCase().trim() === 
+        String(question.correct_answer).toLowerCase().trim();
+
+      if (isCorrect) {
+        correctCount++;
+      }
+
+      console.log('Response validation:', {
+        questionId: response.questionId,
+        givenAnswer: response.answer,
+        correctAnswer: question?.correct_answer,
+        isCorrect
+      });
+
+      return {
+        ...response,
+        is_correct: isCorrect,
+        correct_answer: question?.correct_answer,
+        question_text: question?.question_text
+      };
+    });
+
+    const totalQuestions = testData.questions.length;
+    const score = Math.round((correctCount / totalQuestions) * 100);
+
+    console.log('Final scoring:', {
+      correctCount,
+      totalQuestions,
+      score
+    });
+
+    return {
+      responses: scoredResponses,
+      total_correct: correctCount,
+      total_questions: totalQuestions,
+      score
     };
   }
 
@@ -342,32 +487,54 @@ export class TestService {
   }
 
   private analyzeTestResults(testData: any) {
+    console.log('Analyzing test results:', JSON.stringify(testData, null, 2));
+    
     let correctAnswers = 0;
     let totalTimeSpent = 0;
     const questionAnalysis = [];
 
     for (const response of testData.responses) {
       const question = testData.questions.find(
-        (q: any) => q.question_id === response.questionId
+        (q: any) => BigInt(q.question_id) === BigInt(response.questionId)
       );
 
-      const isCorrect = question?.correct_answer === response.answer;
-      if (isCorrect) correctAnswers++;
+      console.log('Comparing answer:', {
+        questionId: response.questionId,
+        givenAnswer: response.answer,
+        correctAnswer: question?.correct_answer,
+        question
+      });
+
+      const isCorrect = question && 
+        String(response.answer).toLowerCase().trim() === 
+        String(question.correct_answer).toLowerCase().trim();
+
+      if (isCorrect) {
+        console.log(`Question ${response.questionId} is correct`);
+        correctAnswers++;
+      }
 
       totalTimeSpent += response.timeSpent;
 
       questionAnalysis.push({
         questionId: response.questionId,
-        correct: isCorrect,
         timeSpent: response.timeSpent,
-        topic: question?.topic?.name,
+        isCorrect,
+        givenAnswer: response.answer,
+        correctAnswer: question?.correct_answer
       });
     }
+
+    console.log('Analysis results:', {
+      correctAnswers,
+      totalQuestions: testData.questions.length,
+      score: Math.round((correctAnswers / testData.questions.length) * 100)
+    });
 
     return {
       correctAnswers,
       totalTimeSpent,
-      questionAnalysis,
+      questionAnalysis
     };
   }
 
@@ -394,13 +561,28 @@ export class TestService {
   }
 
   private formatExecutionResponse(execution: any): TestExecutionResponse {
+    const testData = execution.test_data ? JSON.parse(execution.test_data) : {};
+    
     return {
-      executionId: execution.execution_id,
+      executionId: execution.execution_id.toString(),
+      testPlanId: execution.test_plan_id.toString(),
+      studentId: execution.test_plans?.student_id?.toString(),
       status: execution.status,
       startedAt: execution.started_at,
       completedAt: execution.completed_at,
       score: execution.score,
-      testData: JSON.parse(execution.test_data),
+      testData: {
+        questions: testData.questions || [],
+        responses: testData.responses || [],
+        total_correct: testData.total_correct,
+        total_questions: testData.total_questions,
+        timing: testData.timing || {
+          startTime: execution.started_at ? new Date(execution.started_at).getTime() : undefined,
+          endTime: execution.completed_at ? new Date(execution.completed_at).getTime() : undefined,
+          pausedDuration: 0
+        },
+        question_analysis: testData.question_analysis || []
+      }
     };
   }
 }

@@ -48,21 +48,41 @@ export class ParentService {
     });
   }
 
-  // Create a test plan for a child
+  // Create a test plan
   async createTestPlan(parentId: bigint, data: {
-    studentId: bigint;
     title: string;
     description?: string;
     subjectId: number;
     questionSetIds: number[];
     questionsPerSet: number;
     timeLimit?: number;
+    type: string;
   }) {
+    // Create test plan without assigning to any student
+    return prisma.testPlan.create({
+      data: {
+        title: data.title,
+        description: data.description,
+        subject_id: data.subjectId,
+        planned_by: parentId,
+        planned_by_type: 'PARENT',
+        time_limit: data.timeLimit,
+        type: data.type,
+        configuration: JSON.stringify({
+          questionSetIds: data.questionSetIds,
+          questionsPerSet: data.questionsPerSet
+        })
+      }
+    });
+  }
+
+  // Assign test plan to student
+  async assignTestPlan(parentId: bigint, testPlanId: bigint, studentId: bigint) {
     // Verify parent-child relationship
     const relationship = await prisma.studentGuardian.findFirst({
       where: {
         guardian_id: parentId,
-        student_id: data.studentId
+        student_id: studentId
       }
     });
 
@@ -70,21 +90,26 @@ export class ParentService {
       throw new NotFoundError('Parent-child relationship not found');
     }
 
-    // Create test plan
-    return prisma.testPlan.create({
-      data: {
-        title: data.title,
-        description: data.description,
-        subject_id: data.subjectId,
-        student_id: data.studentId,
+    // Verify test plan ownership
+    const testPlan = await prisma.testPlan.findFirst({
+      where: {
+        id: testPlanId,
         planned_by: parentId,
-        planned_by_type: 'PARENT',
+        planned_by_type: 'PARENT'
+      }
+    });
+
+    if (!testPlan) {
+      throw new NotFoundError('Test plan not found or not owned by parent');
+    }
+
+    // Create test plan assignment
+    return prisma.testPlanAssignment.create({
+      data: {
+        test_plan_id: testPlanId,
+        student_id: studentId,
         student_guardian_id: relationship.id,
-        time_limit: data.timeLimit,
-        configuration: JSON.stringify({
-          questionSetIds: data.questionSetIds,
-          questionsPerSet: data.questionsPerSet
-        })
+        status: 'ASSIGNED'
       }
     });
   }

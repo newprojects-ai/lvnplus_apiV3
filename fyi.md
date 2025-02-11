@@ -791,7 +791,6 @@ if (!id || isNaN(Number(id))) {
 - Improved validation at multiple levels
 
 #### Next Steps
-
 - Monitor error logs for any new patterns
 - Consider adding input validation middleware
 - Update other controllers with similar validation
@@ -1129,10 +1128,11 @@ Added new functionality to track subject mastery and user activities in the gami
      - Test completions
    - Integrated subject mastery updates based on exam board subjects
 
-2. Gamification Events Added:
-   - `TEST_START`: Logged when a test execution is created
-   - `ANSWER_SUBMISSION`: Logged for each answer submission with correctness
-   - `TEST_COMPLETION`: Logged when a test is completed with final score
+#### Gamification Events Added
+
+- `TEST_START`: Logged when a test execution is created
+- `ANSWER_SUBMISSION`: Logged for each answer submission with correctness
+- `TEST_COMPLETION`: Logged when a test is completed with final score
 
 #### Rationale
 
@@ -1848,6 +1848,185 @@ interface PerformanceMetrics {
 - Check server logs for password verification details
 - Verify successful login with correct credentials
 
+### CORS Configuration Update (2025-02-10 16:25:04Z)
+
+#### What
+Updated CORS configuration in server.ts to allow necessary request tracking headers.
+
+1. Added Headers:
+   - `x-request-id`
+   - `x-request-time`
+
+2. Configuration:
+   - Added to both `allowedHeaders` and `exposedHeaders`
+   - Maintained existing CORS settings for origins and methods
+
+#### Why
+- Fix CORS errors in frontend requests
+- Enable request tracking functionality
+- Support frontend API client interceptors
+
+#### How
+Updated CORS configuration in server.ts:
+```typescript
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:3001', 'http://localhost:4001'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization',
+    'x-request-id',
+    'x-request-time'
+  ],
+  exposedHeaders: [
+    'x-request-id',
+    'x-request-time'
+  ]
+}));
+```
+
+#### Technical Details
+1. CORS Headers:
+   - `allowedHeaders`: Headers the client can send
+   - `exposedHeaders`: Headers the client can read
+   - `credentials`: Allows cookies and auth headers
+
+2. Request Tracking:
+   - `x-request-id`: Unique identifier for each request
+   - `x-request-time`: Timestamp of request initiation
+
+#### Next Steps
+1. Test API endpoints with new CORS configuration
+2. Monitor request tracking in logs
+3. Verify frontend receives proper CORS headers
+
+### Package.json Updates (2025-02-10 16:21:04Z)
+
+#### What
+Updated package.json to include both NestJS and existing scripts/dependencies.
+
+1. Scripts:
+   - Kept existing scripts (dev, prisma:*)
+   - Added NestJS scripts (start:dev, start:debug, etc.)
+   - Added test scripts for Jest
+
+2. Dependencies:
+   - Added NestJS dependencies (@nestjs/common, @nestjs/core, etc.)
+   - Kept existing dependencies (prisma, express, etc.)
+   - Added necessary dev dependencies
+
+#### Why
+- Fix missing script error when running npm run dev
+- Ensure both NestJS and existing functionality work
+- Maintain backward compatibility
+
+#### How
+1. Updated package.json:
+   ```json
+   {
+     "scripts": {
+       "dev": "tsx watch src/server.ts",
+       "start:dev": "nest start --watch",
+       // other scripts...
+     }
+   }
+   ```
+
+2. Added NestJS dependencies while keeping existing ones:
+   ```json
+   {
+     "dependencies": {
+       "@nestjs/common": "^10.0.0",
+       "@prisma/client": "^5.22.0",
+       // other dependencies...
+     }
+   }
+   ```
+
+#### Technical Details
+1. Script Configuration:
+   - Development script uses tsx for fast development
+   - NestJS scripts for production builds
+   - Prisma scripts for database management
+
+2. Dependencies:
+   - NestJS core packages for framework
+   - Express packages for HTTP server
+   - Prisma for database ORM
+
+#### Next Steps
+1. Test all scripts work correctly
+2. Ensure database migrations run properly
+3. Verify both NestJS and Express endpoints work
+
+### NestJS Auth Module Implementation (2025-02-10 16:09:08Z)
+
+#### What
+Implemented proper NestJS authentication module and updated controllers.
+
+1. Auth Controller:
+   - Converted to NestJS controller with decorators
+   - Added Swagger documentation
+   - Improved error handling
+   - Added proper response types
+
+2. Auth Module:
+   - Created AuthModule with proper structure
+   - Added module to AppModule imports
+   - Configured providers and exports
+
+#### Why
+- Fix 404 errors for auth endpoints
+- Improve API documentation
+- Better error handling
+- Proper NestJS architecture
+
+#### How
+1. Updated Auth Controller:
+   ```typescript
+   @Controller('auth')
+   export class AuthController {
+     @Post('login')
+     async login(@Body() credentials: LoginUserDTO, @Res() res: Response) {
+       const { user, token } = await this.authService.login(credentials);
+       return res.status(HttpStatus.OK).json({
+         message: 'Login successful',
+         user,
+         token,
+       });
+     }
+   }
+   ```
+
+2. Created Auth Module:
+   ```typescript
+   @Module({
+     controllers: [AuthController],
+     providers: [AuthService],
+     exports: [AuthService],
+   })
+   export class AuthModule {}
+   ```
+
+#### Technical Details
+1. Controller Features:
+   - Proper route decorators
+   - Request validation
+   - Response serialization
+   - Cookie handling
+
+2. Module Configuration:
+   - Dependency injection
+   - Service providers
+   - Module exports
+
+#### Next Steps
+1. Add auth guards
+2. Implement refresh tokens
+3. Add rate limiting
+4. Enhance validation
+
 ### NestJS and Swagger Implementation (2025-02-09 21:54:43Z)
 
 #### What
@@ -1919,69 +2098,464 @@ Implemented NestJS controllers with Swagger documentation for all API endpoints.
 3. Add response caching
 4. Add API versioning
 
-### NestJS Auth Module Implementation (2025-02-10 16:09:08Z)
+### Auth Controller Update (2025-02-10 16:26:38Z)
 
 #### What
-Implemented proper NestJS authentication module and updated controllers.
+Reverted auth controller from NestJS to Express-style implementation to maintain compatibility with existing routes.
 
-1. Auth Controller:
-   - Converted to NestJS controller with decorators
-   - Added Swagger documentation
-   - Improved error handling
-   - Added proper response types
+1. Controller Changes:
+   - Removed NestJS decorators
+   - Restored Express request handlers
+   - Maintained existing functionality
 
-2. Auth Module:
-   - Created AuthModule with proper structure
-   - Added module to AppModule imports
-   - Configured providers and exports
+2. Authentication Flow:
+   - Register endpoint with validation
+   - Login with cookie-based token
+   - Secure logout handling
 
 #### Why
-- Fix 404 errors for auth endpoints
-- Improve API documentation
-- Better error handling
-- Proper NestJS architecture
+- Fix "Route.post() requires a callback function" error
+- Maintain compatibility with Express routing
+- Ensure consistent authentication flow
 
 #### How
-1. Updated Auth Controller:
+Updated auth.controller.ts:
+```typescript
+export const login = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const credentials: LoginUserDTO = req.body;
+    const { user, token } = await authService.login(credentials);
+    
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000
+    });
+
+    res.json({
+      message: 'Login successful',
+      user,
+      token,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
+#### Technical Details
+1. Authentication Flow:
+   - Request validation middleware
+   - Service layer for business logic
+   - Secure cookie handling
+   - Error handling middleware
+
+2. Security Features:
+   - HTTP-only cookies
+   - Secure cookie flag in production
+   - Strict same-site policy
+   - Token expiration
+
+#### Next Steps
+1. Test authentication endpoints
+2. Verify cookie handling
+3. Add rate limiting
+4. Enhance error responses
+
+### Role Case Normalization (2025-02-10 18:54:28Z)
+
+#### What
+Updated role case handling to ensure consistent case across frontend and backend.
+
+1. Frontend Changes:
+   - Made role comparison case-insensitive in Hero component
+   - Added role logging in AuthContext for debugging
+
+2. Backend Changes:
+   - Updated formatUserResponse to normalize role cases
+   - Added logging for role transformation
+   - Converted roles to title case format
+
+#### Why
+- Fix issue with greyed out home page options for Student role
+- Ensure consistent role case handling across the application
+- Improve debugging capabilities for role-based issues
+
+#### How
+1. Updated Hero component:
    ```typescript
-   @Controller('auth')
-   export class AuthController {
-     @Post('login')
-     async login(@Body() credentials: LoginUserDTO, @Res() res: Response) {
-       const { user, token } = await this.authService.login(credentials);
-       return res.status(HttpStatus.OK).json({
-         message: 'Login successful',
-         user,
-         token,
-       });
+   const isFeatureEnabled = (allowedRoles?: string[]) => {
+     if (!isAuthenticated || !user || !allowedRoles) return false;
+     return user.roles.some(role => 
+       allowedRoles.some(allowedRole => 
+         allowedRole.toLowerCase() === role.toLowerCase()
+       )
+     );
+   };
+   ```
+
+2. Updated auth service:
+   ```typescript
+   private formatUserResponse(user: any) {
+     const roles = user.user_roles.map((ur: any) => ur.roles.role_name);
+     const normalizedRoles = roles.map((role: string) => 
+       role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()
+     );
+     return {
+       // ...other fields
+       roles: normalizedRoles,
+     };
+   }
+   ```
+
+#### Technical Details
+1. Role Case Format:
+   - Database: 'STUDENT', 'PARENT', etc. (uppercase)
+   - API Response: 'Student', 'Parent', etc. (title case)
+   - Frontend Comparison: Case-insensitive
+
+2. Role Handling Flow:
+   - Database → Uppercase
+   - API Transform → Title Case
+   - Frontend Compare → Case-insensitive
+
+#### Next Steps
+1. Test role-based access with different roles
+2. Monitor role transformation logs
+3. Consider adding role validation middleware
+4. Add role case constants
+
+### Test Completion Endpoint (2025-02-10 18:57:08Z)
+
+#### What
+Added test completion endpoint to handle test submissions and calculate scores.
+
+1. API Changes:
+   - Added POST `/tests/executions/:executionId/complete` endpoint
+   - Added test completion service method
+   - Added test completion controller
+
+2. Features:
+   - Test timing data tracking
+   - Score calculation
+   - Test status updates
+   - Response validation
+
+#### Why
+- Fix 400 Bad Request error when submitting tests
+- Properly handle test completion flow
+- Track test timing data
+- Calculate and store test scores
+
+#### How
+1. Added test completion service method:
+   ```typescript
+   async completeTest(executionId: bigint, userId: bigint, timingData: {
+     endTime: number;
+     startTime: number;
+     TotalTimeTaken: number;
+     testTotalTimeTaken: number;
+   }): Promise<TestExecutionResponse>
+   ```
+
+2. Added test completion endpoint:
+   ```typescript
+   router.post('/executions/:executionId/complete', authenticate, completeTest);
+   ```
+
+#### Technical Details
+1. Test Completion Flow:
+   - Validate test is in progress
+   - Update timing information
+   - Calculate final score
+   - Update test status to COMPLETED
+   - Store completion timestamp
+
+2. Score Calculation:
+   - Based on correct answers ratio
+   - Score = (correctAnswers / totalQuestions) * 100
+   - Rounded to nearest integer
+
+#### Next Steps
+1. Add test completion validation
+2. Implement retry logic for failed submissions
+3. Add detailed error messages
+4. Add test completion metrics tracking
+
+### Test Answer Validation Fix (2025-02-10 19:05:20Z)
+
+#### What
+Fixed test answer validation and scoring logic to properly evaluate student responses.
+
+1. Response Validation:
+   - Per-question correctness validation
+   - Case-insensitive answer comparison
+   - Whitespace normalization
+   - Detailed validation logging
+
+2. Scoring System:
+   - Individual response scoring
+   - Total correct answers tracking
+   - Percentage score calculation
+   - Score persistence in both test_data and score column
+
+#### Why
+- Ensure accurate response validation
+- Track individual question correctness
+- Maintain consistent scoring data
+- Enable better debugging of scoring issues
+
+#### How
+1. Added validateAndScoreResponses method:
+   ```typescript
+   const scoredResponses = testData.responses.map(response => ({
+     ...response,
+     is_correct: isCorrect,
+     correct_answer: question?.correct_answer,
+     question_text: question?.question_text
+   }));
+   ```
+
+2. Enhanced test_data structure:
+   ```typescript
+   testData: {
+     responses: [{
+       questionId: number,
+       answer: string,
+       timeSpent: number,
+       is_correct: boolean,
+       correct_answer: string,
+       question_text: string
+     }],
+     total_correct: number,
+     total_questions: number,
+     score: number,
+     timing: {
+       startTime: number,
+       endTime: number,
+       completedAt: string
      }
    }
    ```
 
-2. Created Auth Module:
+#### Technical Details
+1. Validation Process:
+   - Load question and response
+   - Normalize answers (trim, lowercase)
+   - Compare answers
+   - Store validation result
+   - Update response object
+
+2. Scoring Process:
+   - Count correct answers
+   - Calculate percentage score
+   - Update test_data JSON
+   - Update score column
+   - Store detailed results
+
+#### Next Steps
+1. Add partial scoring rules
+2. Implement answer similarity scoring
+3. Add question difficulty weighting
+4. Support multiple correct answers
+
+### Test Execution Data Restoration (2025-02-10 19:09:49Z)
+
+#### What
+Restored and enhanced test execution data storage and response format.
+
+1. API Changes:
+   - Enhanced TestExecutionResponse format
+   - Added detailed test data storage
+   - Restored question analysis data
+
+2. Data Fields:
+   - Test questions and responses
+   - Timing information
+   - Score calculation
+   - Question-level analysis
+   - Total correct answers
+   - Total questions
+
+#### Why
+- Fix missing test execution data
+- Restore question analysis information
+- Improve test result accuracy
+- Maintain data consistency
+
+#### How
+1. Updated TestExecutionResponse format:
    ```typescript
-   @Module({
-     controllers: [AuthController],
-     providers: [AuthService],
-     exports: [AuthService],
-   })
-   export class AuthModule {}
+   {
+     executionId: string;
+     testPlanId: string;
+     studentId: string;
+     status: string;
+     startedAt: Date;
+     completedAt: Date;
+     score: number;
+     testData: {
+       questions: [],
+       responses: [],
+       total_correct: number,
+       total_questions: number,
+       timing: {
+         startTime: number,
+         endTime: number,
+         pausedDuration: number
+       },
+       question_analysis: []
+     }
+   }
+   ```
+
+2. Enhanced test completion:
+   ```typescript
+   testData.total_correct = analysis.correctAnswers;
+   testData.total_questions = testData.questions.length;
+   testData.question_analysis = analysis.questionAnalysis;
    ```
 
 #### Technical Details
-1. Controller Features:
-   - Proper route decorators
-   - Request validation
-   - Response serialization
-   - Cookie handling
+1. Test Data Storage:
+   - Questions and correct answers
+   - Student responses
+   - Timing information
+   - Score calculations
+   - Question analysis
+   - Performance metrics
 
-2. Module Configuration:
-   - Dependency injection
-   - Service providers
-   - Module exports
+2. Data Flow:
+   - Submit answers → Store responses
+   - Complete test → Analyze answers
+   - Calculate score → Store results
+   - Return formatted response
 
 #### Next Steps
-1. Add auth guards
-2. Implement refresh tokens
-3. Add rate limiting
-4. Enhance validation
+1. Add response validation
+2. Implement answer comparison rules
+3. Add detailed performance metrics
+4. Enhance question analysis
+
+### Enhanced Test Validation and Scoring (2025-02-10 19:14:53Z)
+
+#### What
+Added comprehensive test response validation and scoring system.
+
+1. Response Validation:
+   - Per-question correctness validation
+   - Case-insensitive answer comparison
+   - Whitespace normalization
+   - Detailed validation logging
+
+2. Scoring System:
+   - Individual response scoring
+   - Total correct answers tracking
+   - Percentage score calculation
+   - Score persistence in both test_data and score column
+
+#### Why
+- Ensure accurate response validation
+- Track individual question correctness
+- Maintain consistent scoring data
+- Enable better debugging of scoring issues
+
+#### How
+1. Added validateAndScoreResponses method:
+   ```typescript
+   const scoredResponses = testData.responses.map(response => ({
+     ...response,
+     is_correct: isCorrect,
+     correct_answer: question?.correct_answer,
+     question_text: question?.question_text
+   }));
+   ```
+
+2. Enhanced test_data structure:
+   ```typescript
+   testData: {
+     responses: [{
+       questionId: number,
+       answer: string,
+       timeSpent: number,
+       is_correct: boolean,
+       correct_answer: string,
+       question_text: string
+     }],
+     total_correct: number,
+     total_questions: number,
+     score: number,
+     timing: {
+       startTime: number,
+       endTime: number,
+       completedAt: string
+     }
+   }
+   ```
+
+#### Technical Details
+1. Validation Process:
+   - Load question and response
+   - Normalize answers (trim, lowercase)
+   - Compare answers
+   - Store validation result
+   - Update response object
+
+2. Scoring Process:
+   - Count correct answers
+   - Calculate percentage score
+   - Update test_data JSON
+   - Update score column
+   - Store detailed results
+
+#### Next Steps
+1. Add partial scoring rules
+2. Implement answer similarity scoring
+3. Add question difficulty weighting
+4. Support multiple correct answers
+
+### Student-Guardian and Student-Tutor Linking API Implementation (2025-02-11 21:36:20Z)
+
+#### Changes Made
+1. Added new Swagger documentation for:
+   - Guardian linking endpoints
+   - Tutor linking endpoints
+   - Student confirmation endpoints
+
+2. Updated route handlers in:
+   - `guardian.routes.ts`: Added link request and confirmation endpoints
+   - `tutor.routes.ts`: Added student linking and confirmation endpoints
+
+3. Key Features:
+   - Separate flows for guardian and tutor relationships
+   - Two-step confirmation process for both types
+   - Proper validation using request schemas
+   - Clear separation of concerns between guardian and tutor functionalities
+
+#### Endpoints Added
+1. Guardian Endpoints:
+   - `POST /api/guardians/link-request`: Request to link with a student
+   - `DELETE /api/guardians/{guardianId}/students/{studentId}`: Remove relationship
+   - `POST /api/students/confirm-guardian/{linkId}`: Confirm/reject guardian link
+
+2. Tutor Endpoints:
+   - `POST /api/tutors/students/link-request`: Request to link with a student
+   - `DELETE /api/tutors/{tutorId}/students/{studentId}`: Remove relationship
+   - `POST /api/students/confirm-tutor/{linkId}`: Confirm/reject tutor link
+
+#### Implementation Details
+- Uses separate tables for guardian and tutor relationships
+- Maintains clear distinction between parent/guardian and tutor roles
+- Implements proper validation and authentication
+- Follows REST API best practices
+
+#### Next Steps
+1. Implement email notifications for link requests
+2. Add rate limiting for link requests
+3. Consider adding bulk linking capabilities for tutors
+4. Add analytics for tracking relationship patterns

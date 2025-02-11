@@ -7,6 +7,8 @@ import {
   submitTest,
   getTestStatus,
   getTestResults,
+  completeTest,
+  submitAllAnswers
 } from '../controllers/test.controller';
 import { authenticate } from '../middleware/auth';
 import { checkRole } from '../middleware/roles';
@@ -258,5 +260,97 @@ router.get('/:executionId/status', authenticate, getTestStatus);
  *                         type: string
  */
 router.get('/:executionId/results', authenticate, getTestResults);
+
+/**
+ * @swagger
+ * /tests/executions/{executionId}/complete:
+ *   post:
+ *     summary: Complete a test execution
+ *     tags: [Tests]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: executionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - timingData
+ *             properties:
+ *               timingData:
+ *                 type: object
+ *                 required:
+ *                   - endTime
+ *                   - startTime
+ *                   - TotalTimeTaken
+ *                   - testTotalTimeTaken
+ *                 properties:
+ *                   endTime:
+ *                     type: number
+ *                   startTime:
+ *                     type: number
+ *                   TotalTimeTaken:
+ *                     type: number
+ *                   testTotalTimeTaken:
+ *                     type: number
+ *     responses:
+ *       200:
+ *         description: Test completed successfully
+ */
+router.post('/executions/:executionId/complete', authenticate, completeTest);
+
+/**
+ * @swagger
+ * /tests/executions/{executionId}/submitAllAnswers:
+ *   post:
+ *     summary: Submit all answers for a test execution
+ *     tags: [Tests]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: executionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - responses
+ *               - endTime
+ *             properties:
+ *               responses:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - questionId
+ *                     - answer
+ *                     - timeTaken
+ *                   properties:
+ *                     questionId:
+ *                       type: number
+ *                     answer:
+ *                       type: string
+ *                     timeTaken:
+ *                       type: number
+ *               endTime:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Answers submitted successfully
+ */
+router.post('/executions/:executionId/submitAllAnswers', authenticate, submitAllAnswers);
 
 export default router;

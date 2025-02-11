@@ -123,10 +123,37 @@
  *               type: array
  *               items:
  *                 type: string
- */
-
-/**
- * @swagger
+ * 
+ *     TutorStudentLinkRequest:
+ *       type: object
+ *       required:
+ *         - studentEmail
+ *       properties:
+ *         studentEmail:
+ *           type: string
+ *           format: email
+ *           description: Email of the student to link with
+ * 
+ *     TutorStudentLinkResponse:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: bigint
+ *           description: ID of the created link
+ *         tutorId:
+ *           type: string
+ *           format: bigint
+ *         studentId:
+ *           type: string
+ *           format: bigint
+ *         status:
+ *           type: string
+ *           enum: [ACTIVE, INACTIVE]
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ * 
  * /api/students:
  *   get:
  *     summary: Get all students
@@ -221,10 +248,7 @@
  *     responses:
  *       204:
  *         description: Student deleted
- */
-
-/**
- * @swagger
+ * 
  * /api/groups:
  *   get:
  *     summary: Get all study groups
@@ -259,10 +283,7 @@
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/StudyGroup'
- */
-
-/**
- * @swagger
+ * 
  * /api/test-plans:
  *   get:
  *     summary: Get all test plans
@@ -297,10 +318,7 @@
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/TestPlan'
- */
-
-/**
- * @swagger
+ * 
  * /api/test-executions:
  *   get:
  *     summary: Get all test executions
@@ -338,4 +356,101 @@
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/TestExecution'
+ * 
+ * /api/tutors/students/link-request:
+ *   post:
+ *     summary: Request to link with a student as a tutor
+ *     tags: [Tutors]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/TutorStudentLinkRequest'
+ *     responses:
+ *       201:
+ *         description: Link request created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TutorStudentLinkResponse'
+ *       400:
+ *         description: Invalid request or relationship already exists
+ *       404:
+ *         description: Student not found
+ *       401:
+ *         description: Unauthorized
+ * 
+ * /api/tutors/{tutorId}/students/{studentId}:
+ *   delete:
+ *     summary: Remove tutor-student relationship
+ *     tags: [Tutors]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tutorId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: bigint
+ *         description: ID of the tutor
+ *       - in: path
+ *         name: studentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: bigint
+ *         description: ID of the student
+ *     responses:
+ *       200:
+ *         description: Relationship removed successfully
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: Relationship not found
+ *       401:
+ *         description: Unauthorized
+ * 
+ * /api/students/confirm-tutor/{linkId}:
+ *   post:
+ *     summary: Confirm or reject a tutor link request
+ *     tags: [Students]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: linkId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: bigint
+ *         description: ID of the tutor link request
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - accepted
+ *             properties:
+ *               accepted:
+ *                 type: boolean
+ *                 description: Whether to accept or reject the link request
+ *     responses:
+ *       200:
+ *         description: Link request processed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TutorStudentLinkResponse'
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: Link request not found
+ *       401:
+ *         description: Unauthorized
  */
