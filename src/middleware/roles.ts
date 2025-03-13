@@ -3,7 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 export const checkRole = (allowedRoles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     console.log('Checking roles - Allowed roles:', allowedRoles);
-    console.log('User roles:', req.user?.roles);
+    console.log('User role:', req.user?.role);
 
     if (!req.user) {
       console.log('No user object found in request');
@@ -12,19 +12,17 @@ export const checkRole = (allowedRoles: string[]) => {
       });
     }
 
-    // Convert both user roles and allowed roles to uppercase for case-insensitive comparison
-    const normalizedUserRoles = req.user.roles.map(role => role.toUpperCase());
+    // Convert both user role and allowed roles to uppercase for case-insensitive comparison
+    const normalizedUserRole = req.user.role.toUpperCase();
     const normalizedAllowedRoles = allowedRoles.map(role => role.toUpperCase());
 
-    const hasRole = normalizedUserRoles.some(role => 
-      normalizedAllowedRoles.includes(role)
-    );
+    const hasRole = normalizedAllowedRoles.includes(normalizedUserRole);
     
     if (!hasRole) {
       console.log('No matching roles found');
       return res.status(403).json({
         error: 'Insufficient permissions',
-        userRoles: req.user.roles,
+        userRole: req.user.role,
         allowedRoles: allowedRoles
       });
     }

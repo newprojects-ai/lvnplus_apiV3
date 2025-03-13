@@ -18,6 +18,7 @@ import testPlanRoutes from './routes/testPlan.routes';
 import executionRoutes from './routes/execution.routes';
 import questionRoutes from './routes/question.routes';
 import gamificationRoutes from './routes/gamification.routes';
+import adminRoutes from './routes/admin.routes';
 
 config();
 
@@ -52,6 +53,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 console.log('Registering routes...');
 console.log('Auth routes:', authRoutes);
 console.log('Execution routes:', executionRoutes);
+console.log('Admin routes:', adminRoutes);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/templates', templateRoutes);
@@ -64,6 +66,7 @@ app.use('/api/tests', executionRoutes);
 app.use('/api/executions', executionRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/gamification', gamificationRoutes);
+app.use('/api/admin', adminRoutes);
 
 console.log('Routes registered. Checking route stack...');
 app._router.stack.forEach((r) => {

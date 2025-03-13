@@ -363,3 +363,4 @@ Remember to:
 - Keep security in mind
 - Monitor performance
 - Regular dependency updates
+- Implement SWAGGER documentation for all new endpoints implemented and also for any previous endpoints that don't have it 

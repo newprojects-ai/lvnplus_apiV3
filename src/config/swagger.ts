@@ -381,6 +381,7 @@ const options = {
     security: [{ bearerAuth: [] }],
     tags: [
       { name: 'Authentication', description: 'User authentication endpoints' },
+      { name: 'Admin', description: 'Administrative operations for managing user relationships' },
       { name: 'Subjects', description: 'Subject management' },
       { name: 'Topics', description: 'Topic management' },
       { name: 'Subtopics', description: 'Subtopic management' },

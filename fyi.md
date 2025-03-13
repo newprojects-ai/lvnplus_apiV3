@@ -720,14 +720,7 @@ distributeQuestions(10, 5); // { 1: 2, 2: 2, 3: 2, 4: 2, 5: 2 }
 
 ### BigInt Conversion and Error Handling Improvements (2024-12-11)
 
-#### Timestamp
-
-- **Date**: 2024-12-11
-- **Time**: 09:45:33 UTC
-- **Logged By**: Cascade AI Assistant
-
-#### Problem Identification
-
+#### Issue
 - `safeBigInt` utility silently failing and returning `0n` for invalid inputs
 - Insufficient validation in execution controller
 - Poor error messages for invalid execution IDs
@@ -1206,9 +1199,9 @@ Added new functionality to track subject mastery and user activities in the gami
 - Maintains data consistency across the gamification system
 
 #### Next Steps
-- Monitor error logs for initialization-related issues
-- Consider adding progress record validation in other gamification operations
-- Add metrics tracking for auto-initialized progress records
+1. Monitor error logs for initialization-related issues
+2. Consider adding progress record validation in other gamification operations
+3. Add metrics tracking for auto-initialized progress records
 
 ### Role Case Sensitivity Fix in Gamification Service (2025-01-21 17:42:12Z)
 
@@ -1239,9 +1232,9 @@ const isStudent = user.user_roles.some(ur =>
 - Prevents case sensitivity issues in role checking
 
 #### Next Steps
-- Consider standardizing role name casing across the application
-- Add role name validation at database level
-- Update other role checks to use case-insensitive comparison
+1. Consider standardizing role name casing across the application
+2. Add role name validation at database level
+3. Update other role checks to use case-insensitive comparison
 
 ### Prisma Schema Alignment Fix in GamificationService (2025-01-21 17:47:20Z)
 
@@ -1277,9 +1270,9 @@ return await prisma.student_progress.create({
 - Separates subject mastery concerns for future implementation
 
 #### Next Steps
-- Consider implementing subject mastery as a separate service
-- Add proper schema relations if subject mastery tracking is needed
-- Update other services that might depend on subject mastery data
+1. Consider implementing subject mastery as a separate service
+2. Add proper schema relations if subject mastery tracking is needed
+3. Update other services that might depend on subject mastery data
 
 ### Parent/Tutor Features Implementation - Phase 1 (2025-01-23 15:15:43Z)
 
@@ -1582,10 +1575,19 @@ interface PerformanceMetrics {
    - All functionality preserved while improving code organization
 
 #### Technical Details
-- Used existing tables instead of creating new ones
-- Maintained existing relationships and constraints
-- Updated field names to match database conventions
-- Improved type safety with proper model references
+1. Service Layer Updates:
+   - Improved error handling and validation
+   - Added proper timestamp management
+   - Updated activity logging to use the centralized activity_log table
+
+2. API Endpoints:
+   - Study Groups: `/api/tutors/groups/*`
+   - Parent Monitoring: `/api/parent/students/*`
+   - Test Assignments: `/api/tutors/assignments/*`
+
+3. Data Transfer Objects:
+   - Used for type safety and validation
+   - Examples: `CreateStudyGroupDto`, `UpdateStudyGroupDto`, `AssignTestDto`
 
 #### Next Steps
 1. Add indexes for frequently accessed fields
@@ -1812,10 +1814,6 @@ interface PerformanceMetrics {
   - Password: student123
   - Role: Student
 - Check server logs for detailed error information
-
-### Next Steps
-- Monitor the enhanced logs to identify the exact cause of the JWT token generation failure
-- Verify the user object structure from the database
 
 ### 2025-01-30 12:33:20Z - Fixed Password Field Name Mismatch
 
@@ -2044,480 +2042,141 @@ Implemented NestJS controllers with Swagger documentation for all API endpoints.
    - Added authentication requirements
 
 #### Why
-- Provide interactive API documentation
-- Ensure type safety with TypeScript
-- Follow NestJS best practices
-- Make API testing easier
+- To improve API discoverability and make integration easier
+- To ensure consistent API usage across the platform
+- To maintain clear documentation of all available endpoints
 
 #### How
-1. Controller Updates:
-   - Added `@Controller` decorators
-   - Implemented proper dependency injection
-   - Added route decorators
-   - Added Swagger decorators
+Added Swagger/OpenAPI annotations to the following files:
+- `study-group.routes.ts`
+- `performance.routes.ts`
+- `tutor.routes.ts`
 
-2. Documentation Structure:
-   ```typescript
-   @ApiTags('Tutors')
-   @ApiBearerAuth()
-   @UseGuards(JwtAuthGuard)
-   @Controller('api/tutors')
-   export class TutorController {
-     @Get('students')
-     @ApiOperation({ summary: 'Get all linked students' })
-     @ApiResponse({ ... })
-     async getLinkedStudents() { ... }
-   }
-   ```
-
-3. Authentication:
-   - Added JWT guard
-   - Implemented bearer token auth
-   - Added auth decorators
+Each endpoint documentation includes:
+- Operation summary and description
+- Authentication requirements
+- Request/response schemas
+- Error responses
+- Example payloads where helpful
 
 #### Technical Details
-1. API Endpoints:
-   - Tutor endpoints: `/api/tutors/*`
-   - Parent endpoints: `/api/parents/*`
-   - All endpoints require JWT auth
+Documentation format follows OpenAPI 3.0 standards with:
+- Proper grouping using tags
+- Consistent error response formats
+- Authentication requirements clearly specified
+- Data type definitions and validations
 
-2. Swagger UI:
-   - URL: http://localhost:3000/api-docs
-   - Interactive documentation
-   - Try-it-out functionality
-   - Bearer token support
+```sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  role VARCHAR(255) NOT NULL
+);
 
-3. Response Types:
-   - Proper TypeScript interfaces
-   - Documented schemas
-   - Error responses
+CREATE TABLE student_guardians (
+  id SERIAL PRIMARY KEY,
+  guardian_id INTEGER NOT NULL,
+  student_id INTEGER NOT NULL,
+  relationship VARCHAR(255) NOT NULL,
+  FOREIGN KEY (guardian_id) REFERENCES users(id),
+  FOREIGN KEY (student_id) REFERENCES users(id)
+);
 
-#### Next Steps
-1. Add request validation
-2. Implement rate limiting
-3. Add response caching
-4. Add API versioning
+CREATE TABLE study_groups (
+  id SERIAL PRIMARY KEY,
+  tutor_id INTEGER NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  FOREIGN KEY (tutor_id) REFERENCES users(id)
+);
 
-### Auth Controller Update (2025-02-10 16:26:38Z)
+CREATE TABLE group_members (
+  id SERIAL PRIMARY KEY,
+  group_id INTEGER NOT NULL,
+  student_id INTEGER NOT NULL,
+  FOREIGN KEY (group_id) REFERENCES study_groups(id),
+  FOREIGN KEY (student_id) REFERENCES users(id)
+);
 
-#### What
-Reverted auth controller from NestJS to Express-style implementation to maintain compatibility with existing routes.
+CREATE TABLE test_assignments (
+  id SERIAL PRIMARY KEY,
+  test_plan_id INTEGER NOT NULL,
+  assigner_id INTEGER NOT NULL,
+  student_id INTEGER,
+  group_id INTEGER,
+  due_date DATE NOT NULL,
+  FOREIGN KEY (test_plan_id) REFERENCES test_plans(id),
+  FOREIGN KEY (assigner_id) REFERENCES users(id),
+  FOREIGN KEY (student_id) REFERENCES users(id),
+  FOREIGN KEY (group_id) REFERENCES study_groups(id)
+);
 
-1. Controller Changes:
-   - Removed NestJS decorators
-   - Restored Express request handlers
-   - Maintained existing functionality
-
-2. Authentication Flow:
-   - Register endpoint with validation
-   - Login with cookie-based token
-   - Secure logout handling
-
-#### Why
-- Fix "Route.post() requires a callback function" error
-- Maintain compatibility with Express routing
-- Ensure consistent authentication flow
-
-#### How
-Updated auth.controller.ts:
-```typescript
-export const login = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  try {
-    const credentials: LoginUserDTO = req.body;
-    const { user, token } = await authService.login(credentials);
-    
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000
-    });
-
-    res.json({
-      message: 'Login successful',
-      user,
-      token,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
 ```
 
-#### Technical Details
-1. Authentication Flow:
-   - Request validation middleware
-   - Service layer for business logic
-   - Secure cookie handling
-   - Error handling middleware
+Follow these instructions to make the following change to my code document.
 
-2. Security Features:
-   - HTTP-only cookies
-   - Secure cookie flag in production
-   - Strict same-site policy
-   - Token expiration
+Instruction: Add entry for login validation fix
 
-#### Next Steps
-1. Test authentication endpoints
-2. Verify cookie handling
-3. Add rate limiting
-4. Enhance error responses
+Code Edit:
+```
+{{ ... }}
 
-### Role Case Normalization (2025-02-10 18:54:28Z)
+### 2025-02-13 18:10:51Z - Fixed Login Role Validation
 
 #### What
-Updated role case handling to ensure consistent case across frontend and backend.
-
-1. Frontend Changes:
-   - Made role comparison case-insensitive in Hero component
-   - Added role logging in AuthContext for debugging
-
-2. Backend Changes:
-   - Updated formatUserResponse to normalize role cases
-   - Added logging for role transformation
-   - Converted roles to title case format
+- Updated login validation schema to properly validate user roles
+- Added strict role validation using Zod enum
 
 #### Why
-- Fix issue with greyed out home page options for Student role
-- Ensure consistent role case handling across the application
-- Improve debugging capabilities for role-based issues
+- Users were encountering errors when trying to login with Student or Parent roles
+- Previous validation only checked if role was a non-empty string
+- No validation against allowed role types
 
 #### How
-1. Updated Hero component:
+1. Modified `validation.ts`:
    ```typescript
-   const isFeatureEnabled = (allowedRoles?: string[]) => {
-     if (!isAuthenticated || !user || !allowedRoles) return false;
-     return user.roles.some(role => 
-       allowedRoles.some(allowedRole => 
-         allowedRole.toLowerCase() === role.toLowerCase()
-       )
-     );
-   };
+   const loginSchema = z.object({
+     email: z.string().email(),
+     password: z.string().min(1),
+     role: z.enum(['ADMIN', 'STUDENT', 'PARENT', 'GUARDIAN', 'TUTOR'])
+           .transform(val => val.toUpperCase()),
+   });
    ```
 
-2. Updated auth service:
-   ```typescript
-   private formatUserResponse(user: any) {
-     const roles = user.user_roles.map((ur: any) => ur.roles.role_name);
-     const normalizedRoles = roles.map((role: string) => 
-       role.charAt(0).toUpperCase() + role.slice(1).toLowerCase()
-     );
-     return {
-       // ...other fields
-       roles: normalizedRoles,
-     };
-   }
-   ```
+#### Impact
+- Improved error messages for invalid role attempts
+- Prevents login attempts with non-existent roles
+- Maintains consistent role casing through uppercase transformation
 
-#### Technical Details
-1. Role Case Format:
-   - Database: 'STUDENT', 'PARENT', etc. (uppercase)
-   - API Response: 'Student', 'Parent', etc. (title case)
-   - Frontend Comparison: Case-insensitive
+{{ ... }}
+```
 
-2. Role Handling Flow:
-   - Database → Uppercase
-   - API Transform → Title Case
-   - Frontend Compare → Case-insensitive
-
-#### Next Steps
-1. Test role-based access with different roles
-2. Monitor role transformation logs
-3. Consider adding role validation middleware
-4. Add role case constants
-
-### Test Completion Endpoint (2025-02-10 18:57:08Z)
+### 2025-02-13 18:10:51Z - Fixed Login Role Validation
 
 #### What
-Added test completion endpoint to handle test submissions and calculate scores.
-
-1. API Changes:
-   - Added POST `/tests/executions/:executionId/complete` endpoint
-   - Added test completion service method
-   - Added test completion controller
-
-2. Features:
-   - Test timing data tracking
-   - Score calculation
-   - Test status updates
-   - Response validation
+- Updated login validation schema to properly validate user roles
+- Added strict role validation using Zod enum
 
 #### Why
-- Fix 400 Bad Request error when submitting tests
-- Properly handle test completion flow
-- Track test timing data
-- Calculate and store test scores
+- Users were encountering errors when trying to login with Student or Parent roles
+- Previous validation only checked if role was a non-empty string
+- No validation against allowed role types
 
 #### How
-1. Added test completion service method:
+1. Modified `validation.ts`:
    ```typescript
-   async completeTest(executionId: bigint, userId: bigint, timingData: {
-     endTime: number;
-     startTime: number;
-     TotalTimeTaken: number;
-     testTotalTimeTaken: number;
-   }): Promise<TestExecutionResponse>
+   const loginSchema = z.object({
+     email: z.string().email(),
+     password: z.string().min(1),
+     role: z.enum(['ADMIN', 'STUDENT', 'PARENT', 'GUARDIAN', 'TUTOR'])
+           .transform(val => val.toUpperCase()),
+   });
    ```
 
-2. Added test completion endpoint:
-   ```typescript
-   router.post('/executions/:executionId/complete', authenticate, completeTest);
-   ```
-
-#### Technical Details
-1. Test Completion Flow:
-   - Validate test is in progress
-   - Update timing information
-   - Calculate final score
-   - Update test status to COMPLETED
-   - Store completion timestamp
-
-2. Score Calculation:
-   - Based on correct answers ratio
-   - Score = (correctAnswers / totalQuestions) * 100
-   - Rounded to nearest integer
-
-#### Next Steps
-1. Add test completion validation
-2. Implement retry logic for failed submissions
-3. Add detailed error messages
-4. Add test completion metrics tracking
-
-### Test Answer Validation Fix (2025-02-10 19:05:20Z)
-
-#### What
-Fixed test answer validation and scoring logic to properly evaluate student responses.
-
-1. Response Validation:
-   - Per-question correctness validation
-   - Case-insensitive answer comparison
-   - Whitespace normalization
-   - Detailed validation logging
-
-2. Scoring System:
-   - Individual response scoring
-   - Total correct answers tracking
-   - Percentage score calculation
-   - Score persistence in both test_data and score column
-
-#### Why
-- Ensure accurate response validation
-- Track individual question correctness
-- Maintain consistent scoring data
-- Enable better debugging of scoring issues
-
-#### How
-1. Added validateAndScoreResponses method:
-   ```typescript
-   const scoredResponses = testData.responses.map(response => ({
-     ...response,
-     is_correct: isCorrect,
-     correct_answer: question?.correct_answer,
-     question_text: question?.question_text
-   }));
-   ```
-
-2. Enhanced test_data structure:
-   ```typescript
-   testData: {
-     responses: [{
-       questionId: number,
-       answer: string,
-       timeSpent: number,
-       is_correct: boolean,
-       correct_answer: string,
-       question_text: string
-     }],
-     total_correct: number,
-     total_questions: number,
-     score: number,
-     timing: {
-       startTime: number,
-       endTime: number,
-       completedAt: string
-     }
-   }
-   ```
-
-#### Technical Details
-1. Validation Process:
-   - Load question and response
-   - Normalize answers (trim, lowercase)
-   - Compare answers
-   - Store validation result
-   - Update response object
-
-2. Scoring Process:
-   - Count correct answers
-   - Calculate percentage score
-   - Update test_data JSON
-   - Update score column
-   - Store detailed results
-
-#### Next Steps
-1. Add partial scoring rules
-2. Implement answer similarity scoring
-3. Add question difficulty weighting
-4. Support multiple correct answers
-
-### Test Execution Data Restoration (2025-02-10 19:09:49Z)
-
-#### What
-Restored and enhanced test execution data storage and response format.
-
-1. API Changes:
-   - Enhanced TestExecutionResponse format
-   - Added detailed test data storage
-   - Restored question analysis data
-
-2. Data Fields:
-   - Test questions and responses
-   - Timing information
-   - Score calculation
-   - Question-level analysis
-   - Total correct answers
-   - Total questions
-
-#### Why
-- Fix missing test execution data
-- Restore question analysis information
-- Improve test result accuracy
-- Maintain data consistency
-
-#### How
-1. Updated TestExecutionResponse format:
-   ```typescript
-   {
-     executionId: string;
-     testPlanId: string;
-     studentId: string;
-     status: string;
-     startedAt: Date;
-     completedAt: Date;
-     score: number;
-     testData: {
-       questions: [],
-       responses: [],
-       total_correct: number,
-       total_questions: number,
-       timing: {
-         startTime: number,
-         endTime: number,
-         pausedDuration: number
-       },
-       question_analysis: []
-     }
-   }
-   ```
-
-2. Enhanced test completion:
-   ```typescript
-   testData.total_correct = analysis.correctAnswers;
-   testData.total_questions = testData.questions.length;
-   testData.question_analysis = analysis.questionAnalysis;
-   ```
-
-#### Technical Details
-1. Test Data Storage:
-   - Questions and correct answers
-   - Student responses
-   - Timing information
-   - Score calculations
-   - Question analysis
-   - Performance metrics
-
-2. Data Flow:
-   - Submit answers → Store responses
-   - Complete test → Analyze answers
-   - Calculate score → Store results
-   - Return formatted response
-
-#### Next Steps
-1. Add response validation
-2. Implement answer comparison rules
-3. Add detailed performance metrics
-4. Enhance question analysis
-
-### Enhanced Test Validation and Scoring (2025-02-10 19:14:53Z)
-
-#### What
-Added comprehensive test response validation and scoring system.
-
-1. Response Validation:
-   - Per-question correctness validation
-   - Case-insensitive answer comparison
-   - Whitespace normalization
-   - Detailed validation logging
-
-2. Scoring System:
-   - Individual response scoring
-   - Total correct answers tracking
-   - Percentage score calculation
-   - Score persistence in both test_data and score column
-
-#### Why
-- Ensure accurate response validation
-- Track individual question correctness
-- Maintain consistent scoring data
-- Enable better debugging of scoring issues
-
-#### How
-1. Added validateAndScoreResponses method:
-   ```typescript
-   const scoredResponses = testData.responses.map(response => ({
-     ...response,
-     is_correct: isCorrect,
-     correct_answer: question?.correct_answer,
-     question_text: question?.question_text
-   }));
-   ```
-
-2. Enhanced test_data structure:
-   ```typescript
-   testData: {
-     responses: [{
-       questionId: number,
-       answer: string,
-       timeSpent: number,
-       is_correct: boolean,
-       correct_answer: string,
-       question_text: string
-     }],
-     total_correct: number,
-     total_questions: number,
-     score: number,
-     timing: {
-       startTime: number,
-       endTime: number,
-       completedAt: string
-     }
-   }
-   ```
-
-#### Technical Details
-1. Validation Process:
-   - Load question and response
-   - Normalize answers (trim, lowercase)
-   - Compare answers
-   - Store validation result
-   - Update response object
-
-2. Scoring Process:
-   - Count correct answers
-   - Calculate percentage score
-   - Update test_data JSON
-   - Update score column
-   - Store detailed results
-
-#### Next Steps
-1. Add partial scoring rules
-2. Implement answer similarity scoring
-3. Add question difficulty weighting
-4. Support multiple correct answers
+#### Impact
+- Improved error messages for invalid role attempts
+- Prevents login attempts with non-existent roles
+- Maintains consistent role casing through uppercase transformation
 
 ### Student-Guardian and Student-Tutor Linking API Implementation (2025-02-11 21:36:20Z)
 
@@ -2559,3 +2218,290 @@ Added comprehensive test response validation and scoring system.
 2. Add rate limiting for link requests
 3. Consider adding bulk linking capabilities for tutors
 4. Add analytics for tracking relationship patterns
+
+### Guardian Link Request API Update (2025-02-13 11:26:56Z)
+
+#### Changes Made
+1. Updated Swagger documentation for `/api/guardians/link-request` endpoint:
+   - Fixed request body schema to match actual implementation
+   - Added required fields specification
+   - Updated relationship enum to only include "PARENT"
+   - Added descriptive examples
+   - Removed incorrect bigint format from studentId
+
+#### Request Body Format
+```json
+{
+  "studentId": "string",
+  "relationship": "PARENT"
+}
+
+```
+
+### Guardian-Student Relationship Documentation Update (2025-02-13 11:28:39Z)
+
+#### Changes Made
+1. Enhanced Swagger documentation for `/api/guardians/link-request` endpoint:
+   - Clarified both sides of the relationship:
+     * Guardian: Identified by JWT token in Authorization header
+     * Student: Identified by studentId in request body
+   - Added detailed response schema showing:
+     * linkId: Unique identifier for the link request
+     * guardianId: ID of the requesting guardian
+     * studentId: ID of the target student
+     * status: Initial status (PENDING)
+   - Added more descriptive error responses
+   - Improved endpoint description to clearly show relationship flow
+
+#### Relationship Flow
+1. Guardian (authenticated via JWT) initiates link request
+2. System creates a PENDING link request
+3. Student must confirm the relationship (via separate endpoint)
+4. Once confirmed, the parent-student relationship is established
+
+#### Request Authentication
+```
+Authorization: Bearer <guardian_jwt_token>
+```
+
+#### Request Body
+```json
+{
+  "studentId": "string",    // ID of the student to link with
+  "relationship": "PARENT"  // Type of relationship (guardian's role)
+}
+```
+
+#### Response Body
+```json
+{
+  "linkId": "string",      // Unique ID for the link request
+  "guardianId": "string",  // ID of the requesting guardian
+  "studentId": "string",   // ID of the target student
+  "status": "PENDING"      // Initial status of the request
+}
+```
+
+### Guardian Link Request API Update (2025-02-13 11:26:56Z)
+
+#### Changes Made
+1. Updated Swagger documentation for `/api/guardians/link-request` endpoint:
+   - Fixed request body schema to match actual implementation
+   - Added required fields specification
+   - Updated relationship enum to only include "PARENT"
+   - Added descriptive examples
+   - Removed incorrect bigint format from studentId
+
+#### Request Body Format
+```json
+{
+  "studentId": "string",
+  "relationship": "PARENT"
+}
+
+```
+
+### Admin Relationship Management Endpoints Added (2025-02-13 11:32:16Z)
+
+#### Changes Made
+1. Created new admin routes file with three endpoints:
+   - `/api/admin/link/guardian-student`: Link a guardian with a student
+   - `/api/admin/link/tutor-student`: Link a tutor with a student
+   - `/api/admin/link/tutor-students/bulk`: Bulk link a tutor with multiple students
+
+2. Added validation schemas in `admin.validation.ts`:
+   - Schema for guardian-student links
+   - Schema for tutor-student links
+   - Schema for bulk tutor-student links
+
+#### Guardian-Student Link
+```json
+POST /api/admin/link/guardian-student
+{
+  "guardianId": "string",
+  "studentId": "string",
+  "relationship": "PARENT"
+}
+```
+
+#### Tutor-Student Link
+```json
+POST /api/admin/link/tutor-student
+{
+  "tutorId": "string",
+  "studentId": "string",
+  "subjects": ["MATH_01", "PHY_01"]
+}
+```
+
+#### Bulk Tutor-Student Link
+```json
+POST /api/admin/link/tutor-students/bulk
+{
+  "tutorId": "string",
+  "students": [
+    {
+      "studentId": "string",
+      "subjects": ["MATH_01", "PHY_01"]
+    },
+    {
+      "studentId": "string",
+      "subjects": ["CHEM_01", "BIO_01"]
+    }
+  ]
+}
+```
+
+#### Implementation Details
+1. Security:
+   - All endpoints require authentication
+   - Only users with ADMIN role can access these endpoints
+   - No confirmation needed for admin-created links
+
+2. Validation:
+   - All IDs must be valid and exist in the system
+   - At least one subject required for tutor links
+   - Bulk operation requires at least one student
+
+3. Response Handling:
+   - Success/failure status for each student in bulk operations
+   - Detailed error messages for failed operations
+   - Proper HTTP status codes for different scenarios
+
+#### Next Steps
+1. Implement the AdminController with these methods:
+   - linkGuardianStudent
+   - linkTutorStudent
+   - bulkLinkTutorStudents
+2. Add database transactions for bulk operations
+3. Add logging for admin actions
+4. Consider adding bulk unlinking capabilities
+
+### API Documentation Updates (2025-02-13 11:38:38Z)
+
+#### What Changed
+Added comprehensive Swagger/OpenAPI documentation to all API endpoints to improve API discoverability and usage. This includes:
+
+1. Study Group Management:
+   - Added documentation for all group operations (create, read, update, delete)
+   - Documented member management endpoints
+   - Added detailed request/response schemas
+
+2. Performance Tracking:
+   - Documented student self-performance endpoints
+   - Added guardian/tutor access endpoints for student performance
+   - Documented group performance metrics
+
+3. Tutor Features:
+   - Added complete documentation for student management
+   - Documented group management operations
+   - Added test planning endpoint documentation
+
+#### Why
+- To improve API discoverability and make integration easier
+- To ensure consistent API usage across the platform
+- To maintain clear documentation of all available endpoints
+
+#### How
+Added Swagger/OpenAPI annotations to the following files:
+- `study-group.routes.ts`
+- `performance.routes.ts`
+- `tutor.routes.ts`
+
+Each endpoint documentation includes:
+- Operation summary and description
+- Authentication requirements
+- Request/response schemas
+- Error responses
+- Example payloads where helpful
+
+#### Technical Details
+Documentation format follows OpenAPI 3.0 standards with:
+- Proper grouping using tags
+- Consistent error response formats
+- Authentication requirements clearly specified
+- Data type definitions and validations
+
+```sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  role VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE student_guardians (
+  id SERIAL PRIMARY KEY,
+  guardian_id INTEGER NOT NULL,
+  student_id INTEGER NOT NULL,
+  relationship VARCHAR(255) NOT NULL,
+  FOREIGN KEY (guardian_id) REFERENCES users(id),
+  FOREIGN KEY (student_id) REFERENCES users(id)
+);
+
+CREATE TABLE study_groups (
+  id SERIAL PRIMARY KEY,
+  tutor_id INTEGER NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  FOREIGN KEY (tutor_id) REFERENCES users(id)
+);
+
+CREATE TABLE group_members (
+  id SERIAL PRIMARY KEY,
+  group_id INTEGER NOT NULL,
+  student_id INTEGER NOT NULL,
+  FOREIGN KEY (group_id) REFERENCES study_groups(id),
+  FOREIGN KEY (student_id) REFERENCES users(id)
+);
+
+CREATE TABLE test_assignments (
+  id SERIAL PRIMARY KEY,
+  test_plan_id INTEGER NOT NULL,
+  assigner_id INTEGER NOT NULL,
+  student_id INTEGER,
+  group_id INTEGER,
+  due_date DATE NOT NULL,
+  FOREIGN KEY (test_plan_id) REFERENCES test_plans(id),
+  FOREIGN KEY (assigner_id) REFERENCES users(id),
+  FOREIGN KEY (student_id) REFERENCES users(id),
+  FOREIGN KEY (group_id) REFERENCES study_groups(id)
+);
+
+```
+
+Follow these instructions to make the following change to my code document.
+
+Instruction: Add entry for login validation fix
+
+Code Edit:
+```
+{{ ... }}
+
+### 2025-02-13 18:10:51Z - Fixed Login Role Validation
+
+#### What
+- Updated login validation schema to properly validate user roles
+- Added strict role validation using Zod enum
+
+#### Why
+- Users were encountering errors when trying to login with Student or Parent roles
+- Previous validation only checked if role was a non-empty string
+- No validation against allowed role types
+
+#### How
+1. Modified `validation.ts`:
+   ```typescript
+   const loginSchema = z.object({
+     email: z.string().email(),
+     password: z.string().min(1),
+     role: z.enum(['ADMIN', 'STUDENT', 'PARENT', 'GUARDIAN', 'TUTOR'])
+           .transform(val => val.toUpperCase()),
+   });
+   ```
+
+#### Impact
+- Improved error messages for invalid role attempts
+- Prevents login attempts with non-existent roles
+- Maintains consistent role casing through uppercase transformation
+
+{{ ... }}
