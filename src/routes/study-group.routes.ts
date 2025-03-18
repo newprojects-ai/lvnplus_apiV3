@@ -1,10 +1,22 @@
 import express from 'express';
 import { StudyGroupController } from '../controllers/study-group.controller';
-import { requireTutorRole } from '../middleware/guardian-auth.middleware';
-import { requireAuth } from '../middleware/auth.middleware';
+import { authenticate } from '../middleware/auth';
+import { validateRole, validateRequest } from '../middleware/validation';
+import { z } from 'zod';
 
 const router = express.Router();
 const controller = new StudyGroupController();
+
+// Validation schemas
+const createGroupSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  description: z.string().min(1, 'Description is required'),
+  subjects: z.array(z.string().or(z.number()).transform(val => BigInt(val))).optional()
+});
+
+const addMemberSchema = z.object({
+  student_id: z.string().or(z.number()).transform(val => BigInt(val))
+});
 
 /**
  * @swagger
@@ -45,6 +57,13 @@ const controller = new StudyGroupController();
  *       403:
  *         description: Forbidden - Not a tutor
  */
+router.post(
+  '/',
+  authenticate,
+  validateRole(['tutor']),
+  validateRequest(createGroupSchema),
+  controller.createGroup
+);
 
 /**
  * @swagger
@@ -70,13 +89,19 @@ const controller = new StudyGroupController();
  *                     type: string
  *                   description:
  *                     type: string
- *                   memberCount:
+ *                   member_count:
  *                     type: integer
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Forbidden - Not a tutor
  */
+router.get(
+  '/',
+  authenticate,
+  validateRole(['tutor']),
+  controller.getGroups
+);
 
 /**
  * @swagger
@@ -99,9 +124,9 @@ const controller = new StudyGroupController();
  *           schema:
  *             type: object
  *             required:
- *               - studentId
+ *               - student_id
  *             properties:
- *               studentId:
+ *               student_id:
  *                 type: string
  *                 description: ID of the student to add
  *     responses:
@@ -116,6 +141,13 @@ const controller = new StudyGroupController();
  *       404:
  *         description: Group or student not found
  */
+router.post(
+  '/:groupId/members',
+  authenticate,
+  validateRole(['tutor']),
+  validateRequest(addMemberSchema),
+  controller.addMember
+);
 
 /**
  * @swagger
@@ -146,6 +178,12 @@ const controller = new StudyGroupController();
  *       404:
  *         description: Group or member not found
  */
+router.delete(
+  '/:groupId/members/:studentId',
+  authenticate,
+  validateRole(['tutor']),
+  controller.removeMember
+);
 
 /**
  * @swagger
@@ -171,6 +209,12 @@ const controller = new StudyGroupController();
  *       404:
  *         description: Group not found
  */
+router.put(
+  '/:groupId/deactivate',
+  authenticate,
+  validateRole(['tutor']),
+  controller.deactivateGroup
+);
 
 /**
  * @swagger
@@ -202,7 +246,7 @@ const controller = new StudyGroupController();
  *                     type: string
  *                   email:
  *                     type: string
- *                   joinedAt:
+ *                   joined_at:
  *                     type: string
  *                     format: date-time
  *       401:
@@ -212,15 +256,11 @@ const controller = new StudyGroupController();
  *       404:
  *         description: Group not found
  */
-
-router.use(requireAuth);
-router.use(requireTutorRole); // All study group routes require tutor role
-
-router.post('/', controller.createGroup);
-router.get('/', controller.getGroups);
-router.post('/:groupId/members', controller.addMember);
-router.delete('/:groupId/members/:studentId', controller.removeMember);
-router.put('/:groupId/deactivate', controller.deactivateGroup);
-router.get('/:groupId/members', controller.getGroupMembers);
+router.get(
+  '/:groupId/members',
+  authenticate,
+  validateRole(['tutor']),
+  controller.getMembers
+);
 
 export default router;

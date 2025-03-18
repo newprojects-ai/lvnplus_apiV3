@@ -1,23 +1,33 @@
 import { Request, Response, NextFunction } from 'express';
 import { StudyGroupService } from '../services/study-group.service';
 import { ValidationError } from '../utils/errors';
-
-const studyGroupService = new StudyGroupService();
+import { PrismaService } from '../prisma/prisma.service';
 
 export class StudyGroupController {
+  private studyGroupService: StudyGroupService;
+
+  constructor() {
+    this.studyGroupService = new StudyGroupService(new PrismaService());
+  }
+
   async createGroup(req: Request, res: Response, next: NextFunction) {
     try {
-      const tutorId = BigInt(req.user?.id || 0);
-      const { groupName, description } = req.body;
+      if (!req.user) {
+        throw new ValidationError('User not authenticated');
+      }
 
-      if (!groupName) {
+      const { id: tutorId } = req.user;
+      const { name, description, subjects } = req.body;
+
+      if (!name) {
         throw new ValidationError('Group name is required');
       }
 
-      const group = await studyGroupService.createGroup(
-        tutorId,
-        groupName,
-        description
+      const group = await this.studyGroupService.createGroup(
+        BigInt(tutorId),
+        name,
+        description,
+        subjects?.map(id => BigInt(id))
       );
 
       res.status(201).json({
@@ -31,9 +41,12 @@ export class StudyGroupController {
 
   async getGroups(req: Request, res: Response, next: NextFunction) {
     try {
-      const tutorId = BigInt(req.user?.id || 0);
+      if (!req.user) {
+        throw new ValidationError('User not authenticated');
+      }
 
-      const groups = await studyGroupService.getGroups(tutorId);
+      const { id: tutorId } = req.user;
+      const groups = await this.studyGroupService.getGroups(BigInt(tutorId));
 
       res.json({
         message: 'Study groups retrieved successfully',
@@ -46,16 +59,20 @@ export class StudyGroupController {
 
   async addMember(req: Request, res: Response, next: NextFunction) {
     try {
-      const groupId = BigInt(req.params.groupId);
-      const { studentId } = req.body;
+      if (!req.user) {
+        throw new ValidationError('User not authenticated');
+      }
 
-      if (!studentId) {
+      const groupId = BigInt(req.params.groupId);
+      const { student_id } = req.body;
+
+      if (!student_id) {
         throw new ValidationError('Student ID is required');
       }
 
-      const member = await studyGroupService.addMember(
+      const member = await this.studyGroupService.addMember(
         groupId,
-        BigInt(studentId)
+        BigInt(student_id)
       );
 
       res.status(201).json({
@@ -69,10 +86,14 @@ export class StudyGroupController {
 
   async removeMember(req: Request, res: Response, next: NextFunction) {
     try {
+      if (!req.user) {
+        throw new ValidationError('User not authenticated');
+      }
+
       const groupId = BigInt(req.params.groupId);
       const studentId = BigInt(req.params.studentId);
 
-      await studyGroupService.removeMember(groupId, studentId);
+      await this.studyGroupService.removeMember(groupId, studentId);
 
       res.json({
         message: 'Student removed from group successfully'
@@ -84,10 +105,14 @@ export class StudyGroupController {
 
   async deactivateGroup(req: Request, res: Response, next: NextFunction) {
     try {
-      const tutorId = BigInt(req.user?.id || 0);
+      if (!req.user) {
+        throw new ValidationError('User not authenticated');
+      }
+
+      const { id: tutorId } = req.user;
       const groupId = BigInt(req.params.groupId);
 
-      const group = await studyGroupService.deactivateGroup(groupId, tutorId);
+      const group = await this.studyGroupService.deactivateGroup(groupId, BigInt(tutorId));
 
       res.json({
         message: 'Study group deactivated successfully',
@@ -98,11 +123,18 @@ export class StudyGroupController {
     }
   }
 
-  async getGroupMembers(req: Request, res: Response, next: NextFunction) {
+  async getMembers(req: Request, res: Response, next: NextFunction) {
     try {
-      const groupId = BigInt(req.params.groupId);
+      if (!req.user) {
+        throw new ValidationError('User not authenticated');
+      }
 
-      const members = await studyGroupService.getGroupMembers(groupId);
+      const groupId = BigInt(req.params.groupId);
+      const members = await this.studyGroupService.getGroupMembers(groupId);
+
+      if (!members) {
+        throw new ValidationError('Study group not found');
+      }
 
       res.json({
         message: 'Group members retrieved successfully',

@@ -2,51 +2,21 @@ import { Router } from 'express';
 import {
   getSubtopics,
   createSubtopic,
+  getSubtopic,
   updateSubtopic,
   deleteSubtopic,
+  getSubtopicsByTopic,
 } from '../controllers/subtopic.controller';
 import { authenticate } from '../middleware/auth';
-import { checkRole } from '../middleware/roles';
-import { validateSubtopicCreation, validateSubtopicUpdate } from '../middleware/validation';
+import { hasRole, validateSubtopicCreation, validateSubtopicUpdate } from '../middleware/validation';
 
 const router = Router();
 
 /**
  * @swagger
  * /topics/{topicId}/subtopics:
- *   get:
- *     summary: Get all subtopics for a topic
- *     tags: [Subtopics]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: topicId
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID of the topic
- *     responses:
- *       200:
- *         description: List of subtopics for the topic
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Subtopic'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       404:
- *         $ref: '#/components/responses/NotFoundError'
- */
-router.get('/topics/:topicId/subtopics', authenticate, getSubtopics);
-
-/**
- * @swagger
- * /topics/{topicId}/subtopics:
  *   post:
- *     summary: Create a new subtopic
+ *     summary: Create a new subtopic for a topic
  *     tags: [Subtopics]
  *     security:
  *       - bearerAuth: []
@@ -55,21 +25,13 @@ router.get('/topics/:topicId/subtopics', authenticate, getSubtopics);
  *         name: topicId
  *         required: true
  *         schema:
- *           type: integer
- *         description: ID of the parent topic
+ *           type: string
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - subtopicName
- *             properties:
- *               subtopicName:
- *                 type: string
- *               description:
- *                 type: string
+ *             $ref: '#/components/schemas/SubtopicInput'
  *     responses:
  *       201:
  *         description: Subtopic created successfully
@@ -79,10 +41,10 @@ router.get('/topics/:topicId/subtopics', authenticate, getSubtopics);
  *               $ref: '#/components/schemas/Subtopic'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       404:
- *         $ref: '#/components/responses/NotFoundError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  */
-router.post('/topics/:topicId/subtopics', authenticate, checkRole(['ADMIN']), validateSubtopicCreation, createSubtopic);
+router.post('/topics/:topicId/subtopics', authenticate, hasRole(['admin']), validateSubtopicCreation, createSubtopic);
 
 /**
  * @swagger
@@ -97,19 +59,13 @@ router.post('/topics/:topicId/subtopics', authenticate, checkRole(['ADMIN']), va
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
- *         description: ID of the subtopic to update
+ *           type: string
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               subtopicName:
- *                 type: string
- *               description:
- *                 type: string
+ *             $ref: '#/components/schemas/SubtopicInput'
  *     responses:
  *       200:
  *         description: Subtopic updated successfully
@@ -119,16 +75,10 @@ router.post('/topics/:topicId/subtopics', authenticate, checkRole(['ADMIN']), va
  *               $ref: '#/components/schemas/Subtopic'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       404:
- *         $ref: '#/components/responses/NotFoundError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  */
-router.put(
-  '/subtopics/:id',
-  authenticate,
-  checkRole(['ADMIN']),
-  validateSubtopicUpdate,
-  updateSubtopic
-);
+router.put('/:id', authenticate, hasRole(['admin']), validateSubtopicUpdate, updateSubtopic);
 
 /**
  * @swagger
@@ -143,21 +93,97 @@ router.put(
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
- *         description: ID of the subtopic to delete
+ *           type: string
  *     responses:
  *       200:
  *         description: Subtopic deleted successfully
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
- *       404:
- *         $ref: '#/components/responses/NotFoundError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  */
-router.delete(
-  '/subtopics/:id',
-  authenticate,
-  checkRole(['ADMIN']),
-  deleteSubtopic
-);
+router.delete('/:id', authenticate, hasRole(['admin']), deleteSubtopic);
+
+/**
+ * @swagger
+ * /subtopics:
+ *   get:
+ *     summary: Get all subtopics
+ *     tags: [Subtopics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: topicId
+ *         schema:
+ *           type: string
+ *         description: Filter subtopics by topic ID
+ *     responses:
+ *       200:
+ *         description: List of subtopics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Subtopic'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ */
+router.get('/', authenticate, getSubtopics);
+
+/**
+ * @swagger
+ * /subtopics/{id}:
+ *   get:
+ *     summary: Get a subtopic by ID
+ *     tags: [Subtopics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Subtopic details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Subtopic'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ */
+router.get('/:id', authenticate, getSubtopic);
+
+/**
+ * @swagger
+ * /subtopics/topic/{topicId}:
+ *   get:
+ *     summary: Get subtopics by topic
+ *     tags: [Subtopics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: topicId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of subtopics for the topic
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Subtopic'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ */
+router.get('/topic/:topicId', authenticate, getSubtopicsByTopic);
 
 export default router;

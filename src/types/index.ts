@@ -1,127 +1,259 @@
-export interface RegisterUserDTO {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  roles?: string[];
-}
+import { Request } from 'express';
+import { 
+  test_plans_test_type, 
+  test_plans_timing_type, 
+  test_executions_status,
+  test_templates_source,
+  test_templates_test_type,
+  test_templates_timing_type,
+  exam_boards_input_type
+} from '@prisma/client';
 
+// Role types and constants
+export type Role = 'admin' | 'tutor' | 'parent' | 'student';
+
+export const VALID_ROLES = ['ADMIN', 'TUTOR', 'PARENT', 'STUDENT'] as const;
+
+// Helper functions
+export const normalizeRole = (role: string): string => role.toLowerCase();
+export const isValidRole = (role: string): boolean => {
+  const normalized = normalizeRole(role);
+  return ['admin', 'tutor', 'parent', 'student'].includes(normalized);
+};
+
+// Auth types
 export interface LoginUserDTO {
   email: string;
   password: string;
   role: string;
 }
 
+export interface RegisterUserDTO extends LoginUserDTO {
+  first_name: string;
+  last_name: string;
+}
+
 export interface AuthResponse {
-  user: {
-    id: string | bigint;
-    email: string;
-    firstName: string | null;
-    lastName: string | null;
-    roles: string[];
-  };
   token: string;
-}
-
-export interface CreateTemplateDTO {
-  templateName: string;
-  boardId: number;
-  testType: 'TOPIC' | 'MIXED' | 'MENTAL_ARITHMETIC';
-  timingType: 'TIMED' | 'UNTIMED';
-  timeLimit?: number;
-  configuration: {
-    topics: number[];
-    subtopics: number[];
-    questionCounts: {
-      easy: number;
-      medium: number;
-      hard: number;
-    };
+  user: {
+    id: bigint;
+    email: string;
+    first_name: string;
+    last_name: string;
+    role: Role;
   };
 }
 
-export interface UpdateTemplateDTO extends CreateTemplateDTO {}
+// Request types
+export interface UserRequest extends Request {
+  user?: {
+    id: bigint;
+    email: string;
+    role: Role;
+    roles: Role[];
+  };
+}
+
+// Database Models
+export interface UserRole {
+  role_id: number;
+  role_name: Role;
+  description?: string;
+}
+
+export interface User {
+  user_id: bigint;
+  email: string;
+  first_name: string;
+  last_name: string;
+  roles: Role[];
+}
+
+// Template types
+export interface CreateTemplateDTO {
+  template_name: string;
+  board_id: number;
+  test_type: string;
+  timing_type: string;
+  time_limit?: number;
+  configuration?: Record<string, unknown>;
+}
+
+export interface UpdateTemplateDTO {
+  template_name?: string;
+  board_id?: number;
+  test_type?: string;
+  timing_type?: string;
+  time_limit?: number;
+  configuration?: Record<string, unknown>;
+}
 
 export interface TemplateResponse {
-  id: string | bigint;
-  templateName: string;
+  template_id: number;
+  template_name: string;
   source: 'SYSTEM' | 'USER';
-  creator: {
-    id: string | bigint;
+  board_id: number;
+  test_type: string;
+  timing_type: string;
+  time_limit: number | null;
+  configuration: Record<string, unknown>;
+  created_by: number;
+  created_at: Date;
+  updated_at: Date;
+  active: boolean;
+  user?: {
+    user_id: bigint;
     email: string;
-    firstName: string | null;
-    lastName: string | null;
+    first_name: string;
+    last_name: string;
   };
-  examBoard: {
-    id: number;
-    name: string;
-    inputType: 'NUMERIC' | 'MCQ';
+  exam_board?: {
+    board_id: number;
+    board_name: string;
+    input_type: string;
   };
-  testType: string;
-  timingType: string;
-  timeLimit?: number;
-  configuration: any;
-  createdAt: Date;
 }
 
 export interface TemplateFilters {
   source?: 'SYSTEM' | 'USER';
-  boardId?: number;
+  board_id?: number;
 }
 
+// Topic types
+export interface CreateTopicDTO {
+  name: string;
+  description?: string;
+  subjectId: number;
+}
+
+export interface UpdateTopicDTO {
+  name?: string;
+  description?: string;
+  subjectId?: number;
+}
+
+export interface TopicResponse {
+  topic_id: number;
+  topic_name: string;
+  description: string | null;
+  subject_id: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+// Common types
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+export interface ValidationResponse {
+  success: boolean;
+  message: string;
+  errors: ValidationError[];
+}
+
+export interface PaginationParams {
+  page: number;
+  limit: number;
+  offset: number;
+}
+
+// Question types
+export interface Question {
+  id: number;
+  title: string;
+  content: string;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  type: string;
+  answer: string;
+  explanation?: string;
+  subtopic_id: number;
+}
+
+// Test types
+export interface TestPlan {
+  id: number;
+  name: string;
+  description?: string;
+  template_id: number;
+  student_id: number;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+}
+
+export interface TestExecution {
+  id: number;
+  test_plan_id: number;
+  start_time: Date;
+  end_time?: Date;
+  score?: number;
+  status: 'IN_PROGRESS' | 'COMPLETED';
+}
+
+// Test Plan types
 export interface CreateTestPlanDTO {
-  templateId?: number | null;
-  boardId?: number | null;
-  testType: 'TOPIC' | 'SUBTOPIC' | 'MIXED' | 'RANDOM';
-  timingType: 'TIMED' | 'UNTIMED';
-  timeLimit?: number;
-  studentId?: number | null;
-  plannedBy: number;
-  configuration: {
-    topics: number[];
-    subtopics: number[];
-    totalQuestionCount: number;
-  };
+  template_id: string | number;
+  student_id: string | number;
+  scheduled_for?: string;
+  description?: string;
 }
 
-export interface UpdateTestPlanDTO extends Partial<CreateTestPlanDTO> {}
+export interface UpdateTestPlanDTO {
+  scheduled_for?: string;
+  description?: string;
+}
 
 export interface TestPlanResponse {
-  testPlanId: string | bigint;
-  templateId?: string | bigint;
-  boardId: number;
-  testType: string;
-  timingType: string;
-  timeLimit?: number;
+  id: string;
+  template_id?: string;
+  board_id: number;
+  test_type: test_plans_test_type;
+  timing_type: test_plans_timing_type;
+  time_limit?: number;
   student: {
-    userId: string | bigint;
+    id: string;
     email: string;
-    firstName?: string;
-    lastName?: string;
+    first_name: string;
+    last_name: string;
   };
-  plannedBy: string | bigint;
-  plannedAt: Date;
+  planner: {
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+  };
+  template?: {
+    id: string;
+    name: string;
+    source: test_templates_source;
+    test_type: test_templates_test_type;
+    timing_type: test_templates_timing_type;
+    time_limit?: number;
+    configuration: any;
+  };
+  exam_board?: {
+    id: string;
+    name: string;
+    description?: string;
+    input_type: exam_boards_input_type;
+  };
+  planned_at: Date;
   configuration: any;
-  execution?: {
-    status: string;
-    startedAt?: Date;
-    completedAt?: Date;
-    score?: number;
-  };
 }
 
+// Test Execution types
 export interface TestExecutionResponse {
-  executionId: string | bigint;
-  testPlanId: string | bigint;
-  studentId?: string | bigint;
+  execution_id: string | number;
+  test_plan_id: string | number;
+  student_id?: string | number;
   status: string;
-  startedAt?: Date;
-  testData: string | any;
+  started_at?: Date;
+  test_data: string | any;
   responses: Record<string, string>;
-  timingData: {
-    startTime: number;
-    endTime?: number;
-    pausedDuration?: number;
+  timing_data: {
+    start_time: number;
+    end_time?: number;
+    paused_duration?: number;
   };
   score?: number;
 }
@@ -152,46 +284,50 @@ export interface TestExecutionData {
   score?: number;
 }
 
+// Test Result types
 export interface SubmitAnswerDTO {
-  questionId: string;
+  question_id: string;
   answer: string;
 }
 
 export interface SubmitAllAnswersDTO {
-  executionId: number;
-  endTime: number;
+  execution_id: number;
+  end_time: number;
   responses: {
-    questionId: number;
+    question_id: number;
     answer: string;
-    timeTaken: number;
+    time_taken: number;
   }[];
 }
 
 export interface TestResultResponse {
   id: string;
-  testSessionId: string;
-  userId: string;
+  test_session_id: string;
+  user_id: string;
   score: number;
-  totalQuestions: number;
-  timeSpent: number;
-  completedAt: string;
+  total_questions: number;
+  time_spent: number;
+  completed_at: string;
   accuracy: number;
-  topicPerformance: Array<{
-    topicId: string;
+  topic_performance: Array<{
+    topic_id: string;
     correct: number;
     total: number;
     accuracy: number;
   }>;
 }
 
+// Subject types
 export interface CreateSubjectDTO {
-  subjectName: string;
+  name: string;
   description?: string;
+  boardId?: number;
 }
 
 export interface UpdateSubjectDTO {
-  subjectName?: string;
+  name?: string;
   description?: string;
+  boardId?: number;
 }
 
 export interface SubjectResponse {
@@ -205,77 +341,62 @@ export interface SubjectResponse {
   }[];
 }
 
-export interface CreateTopicDTO {
-  subjectId: number;
-  topicName: string;
-  description?: string;
-}
-
-export interface UpdateTopicDTO {
-  topicName?: string;
-  description?: string;
-}
-
-export interface TopicResponse {
-  id: number;
-  name: string;
-  description: string | null;
-  subject: {
-    id: number;
-    name: string;
-  };
-  subtopics: {
-    id: number;
-    name: string;
-    description: string | null;
-  }[];
-}
-
+// Subtopic types
 export interface CreateSubtopicDTO {
-  topicId: number;
-  subtopicName: string;
+  name: string;
   description?: string;
+  topicId: number;
 }
 
 export interface UpdateSubtopicDTO {
-  subtopicName?: string;
+  name?: string;
   description?: string;
+  topicId?: number;
 }
 
 export interface SubtopicResponse {
-  id: number;
-  name: string;
+  subtopic_id: number;
+  subtopic_name: string;
   description: string | null;
   topic: {
-    id: number;
-    name: string;
+    topic_id: number;
+    topic_name: string;
     subject: {
-      id: number;
-      name: string;
+      subject_id: number;
+      subject_name: string;
     };
   };
+  created_at: Date;
+  updated_at: Date;
 }
 
+// Question types
 export interface CreateQuestionDTO {
+  text: string;
+  type: 'MULTIPLE_CHOICE' | 'SHORT_ANSWER' | 'LONG_ANSWER';
+  difficulty: number;
   subtopicId: number;
-  questionText: string;
-  questionTextPlain: string;
-  options: string;
+  options?: string[];
   correctAnswer: string;
-  correctAnswerPlain: string;
-  solution: string;
-  solutionPlain: string;
-  difficultyLevel: number;
+  explanation?: string;
 }
 
-export interface UpdateQuestionDTO extends Partial<CreateQuestionDTO> {}
+export interface UpdateQuestionDTO {
+  text?: string;
+  type?: 'MULTIPLE_CHOICE' | 'SHORT_ANSWER' | 'LONG_ANSWER';
+  difficulty?: number;
+  subtopicId?: number;
+  options?: string[];
+  correctAnswer?: string;
+  explanation?: string;
+}
 
 export interface QuestionResponse {
-  id: string | bigint;
-  questionText: string;
+  id: string | number;
+  question_text: string;
   options: any;
-  correctAnswer: string;
-  difficultyLevel: number;
+  correct_answer: string;
+  difficulty_level: number;
   subtopic: {
     id: number;
     name: string;
@@ -289,19 +410,19 @@ export interface QuestionResponse {
     };
   };
   creator: {
-    id: string | bigint;
+    id: string | number;
     email: string;
-    firstName: string | null;
-    lastName: string | null;
+    first_name: string | null;
+    last_name: string | null;
   };
-  createdAt: Date;
+  created_at: Date;
 }
 
 export interface QuestionFilters {
-  topicId?: number;
-  subtopicId?: number;
+  topic_id?: number;
+  subtopic_id?: number;
   difficulty?: number;
-  examBoard?: number;
+  exam_board?: number;
   limit: number;
   offset: number;
 }
@@ -309,28 +430,40 @@ export interface QuestionFilters {
 export interface RandomQuestionParams {
   count: number;
   difficulty?: number;
-  topicIds?: number[];
-  subtopicIds?: number[];
-}
-
-export interface RegisterUserDTO {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
+  topic_ids?: number[];
+  subtopic_ids?: number[];
 }
 
 export interface FilterQuestionParams {
-  topicId?: number | string;
-  subtopicId?: number | string;
+  topic_id?: number | string;
+  subtopic_id?: number | string;
   difficulty?: number | string;
   limit: number;
   offset?: number;
 }
 
 export interface FilterQuestionResponse {
-  data: (QuestionResponse & { topicId?: number; topicName?: string })[];
+  data: (QuestionResponse & { topic_id?: number; topic_name?: string })[];
   total: number;
   limit: number;
   offset: number;
+}
+
+// Validation types
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+export interface ValidationResponse {
+  status: 'error';
+  message: string;
+  errors: ValidationError[];
+}
+
+// Error types
+export interface AppError {
+  status: 'error';
+  message: string;
+  details?: unknown;
 }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { login, register, logout } from '../controllers/auth.controller';
-import { validateLogin, validateRegistration } from '../middleware/validation';
+import { validateLogin, validateRegister } from '../middleware/validation';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -37,8 +37,8 @@ const router = Router();
  *                 type: array
  *                 items:
  *                   type: string
- *                   enum: ['STUDENT', 'TEACHER', 'ADMIN', 'PARENT']
- *                 description: Array of roles to assign to the user. Defaults to ['STUDENT'] if not provided
+ *                   enum: ['Student', 'Parent', 'Tutor', 'Admin']
+ *                 description: Array of roles to assign to the user. Defaults to ['Student'] if not provided
  *     responses:
  *       201:
  *         description: User registered successfully
@@ -51,7 +51,7 @@ const router = Router();
  *       409:
  *         $ref: '#/components/responses/ValidationError'
  */
-router.post('/register', validateRegistration, register);
+router.post('/register', validateRegister, register);
 
 /**
  * @swagger

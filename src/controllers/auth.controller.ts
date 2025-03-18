@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../services/auth.service';
-import { RegisterUserDTO, LoginUserDTO } from '../types';
+import type { RegisterUserDTO, LoginUserDTO } from '../types/index';
 
 const authService = new AuthService();
 
@@ -32,14 +32,6 @@ export const login = async (
     const credentials: LoginUserDTO = req.body;
     const { user, token } = await authService.login(credentials);
     
-    // Set token in HTTP-only cookie for better security
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
-
     res.json({
       message: 'Login successful',
       user,
@@ -50,19 +42,8 @@ export const login = async (
   }
 };
 
-export const logout = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const logout = (_req: Request, res: Response, next: NextFunction) => {
   try {
-    // Clear the auth cookie
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-    });
-
     res.json({
       message: 'Logout successful',
     });

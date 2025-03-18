@@ -15,12 +15,13 @@ import {
   logActivity
 } from '../controllers/gamification.controller';
 import { authenticate } from '../middleware/auth';
+import { hasRole } from '../middleware/validation';
 
 const router = Router();
 
 /**
  * @swagger
- * /gamification/progress:
+ * /api/gamification/progress:
  *   get:
  *     summary: Get student's progress
  *     tags: [Gamification]
@@ -29,38 +30,16 @@ const router = Router();
  *     responses:
  *       200:
  *         description: Student progress details
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 userId:
- *                   type: string
- *                 level:
- *                   type: number
- *                 currentXP:
- *                   type: number
- *                 nextLevelXP:
- *                   type: number
- *                 streakDays:
- *                   type: number
- *                 lastActivityDate:
- *                   type: string
- *                   format: date-time
- *                 totalPoints:
- *                   type: number
- *                 subjectMastery:
- *                   type: object
- *                   additionalProperties:
- *                     type: number
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-
-// Student Progress Routes
-router.get('/progress', authenticate, getProgress);
+router.get('/api/gamification/progress', authenticate, hasRole(['student']), getProgress);
 
 /**
  * @swagger
- * /gamification/xp:
+ * /api/gamification/xp:
  *   post:
  *     summary: Add XP to student's progress
  *     tags: [Gamification]
@@ -84,25 +63,18 @@ router.get('/progress', authenticate, getProgress);
  *     responses:
  *       200:
  *         description: XP added successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 newXP:
- *                   type: number
- *                 totalXP:
- *                   type: number
- *                 level:
- *                   type: number
- *                 leveledUp:
- *                   type: boolean
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-router.post('/xp', authenticate, addXP);
+router.post('/api/gamification/xp', authenticate, hasRole(['student']), addXP);
 
 /**
  * @swagger
- * /gamification/streak:
+ * /api/gamification/streak:
  *   post:
  *     summary: Update student's streak
  *     tags: [Gamification]
@@ -111,21 +83,16 @@ router.post('/xp', authenticate, addXP);
  *     responses:
  *       200:
  *         description: Streak updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 streakDays:
- *                   type: number
- *                 streakBonus:
- *                   type: number
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-router.post('/streak', authenticate, updateStreak);
+router.post('/api/gamification/streak', authenticate, hasRole(['student']), updateStreak);
 
 /**
  * @swagger
- * /gamification/achievements:
+ * /api/gamification/achievements:
  *   get:
  *     summary: Get all achievements
  *     tags: [Gamification]
@@ -134,45 +101,16 @@ router.post('/streak', authenticate, updateStreak);
  *     responses:
  *       200:
  *         description: List of achievements
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id:
- *                     type: string
- *                   title:
- *                     type: string
- *                   description:
- *                     type: string
- *                   category:
- *                     type: string
- *                     enum: [Practice, Performance, Consistency, Mastery]
- *                   requiredCriteria:
- *                     type: object
- *                     properties:
- *                       type:
- *                         type: string
- *                         enum: [TestCount, Score, Streak, TopicMastery]
- *                       target:
- *                         type: number
- *                       progress:
- *                         type: number
- *                   points:
- *                     type: number
- *                   unlockedAt:
- *                     type: string
- *                     format: date-time
- *                     nullable: true
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-// Achievement Routes
-router.get('/achievements', authenticate, getAchievements);
+router.get('/api/gamification/achievements', authenticate, hasRole(['student']), getAchievements);
 
 /**
  * @swagger
- * /gamification/achievements/{achievementId}/unlock:
+ * /api/gamification/achievements/{achievementId}/unlock:
  *   post:
  *     summary: Unlock an achievement
  *     tags: [Gamification]
@@ -187,21 +125,18 @@ router.get('/achievements', authenticate, getAchievements);
  *     responses:
  *       200:
  *         description: Achievement unlocked successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 achievement:
- *                   type: object
- *                 xpAwarded:
- *                   type: number
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Achievement not found
  */
-router.post('/achievements/:achievementId/unlock', authenticate, unlockAchievement);
+router.post('/api/gamification/achievements/:achievementId/unlock', authenticate, hasRole(['student']), unlockAchievement);
 
 /**
  * @swagger
- * /gamification/achievements/progress:
+ * /api/gamification/achievements/progress:
  *   get:
  *     summary: Get achievement progress
  *     tags: [Gamification]
@@ -210,28 +145,16 @@ router.post('/achievements/:achievementId/unlock', authenticate, unlockAchieveme
  *     responses:
  *       200:
  *         description: Achievement progress details
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 achievements:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                       progress:
- *                         type: number
- *                       target:
- *                         type: number
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-router.get('/achievements/progress', authenticate, getAchievementProgress);
+router.get('/api/gamification/achievements/progress', authenticate, hasRole(['student']), getAchievementProgress);
 
 /**
  * @swagger
- * /gamification/rewards:
+ * /api/gamification/rewards:
  *   get:
  *     summary: Get available rewards
  *     tags: [Gamification]
@@ -240,33 +163,16 @@ router.get('/achievements/progress', authenticate, getAchievementProgress);
  *     responses:
  *       200:
  *         description: List of available rewards
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id:
- *                     type: string
- *                   title:
- *                     type: string
- *                   description:
- *                     type: string
- *                   cost:
- *                     type: number
- *                   category:
- *                     type: string
- *                     enum: [Avatar, Theme, Badge, Certificate]
- *                   unlocked:
- *                     type: boolean
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-// Reward Routes
-router.get('/rewards', authenticate, getAvailableRewards);
+router.get('/api/gamification/rewards', authenticate, hasRole(['student']), getAvailableRewards);
 
 /**
  * @swagger
- * /gamification/rewards/{rewardId}/purchase:
+ * /api/gamification/rewards/{rewardId}/purchase:
  *   post:
  *     summary: Purchase a reward
  *     tags: [Gamification]
@@ -281,23 +187,20 @@ router.get('/rewards', authenticate, getAvailableRewards);
  *     responses:
  *       200:
  *         description: Reward purchased successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 newBalance:
- *                   type: number
- *                 unlockedReward:
- *                   type: object
+ *       400:
+ *         description: Insufficient points
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Reward not found
  */
-router.post('/rewards/:rewardId/purchase', authenticate, purchaseReward);
+router.post('/api/gamification/rewards/:rewardId/purchase', authenticate, hasRole(['student']), purchaseReward);
 
 /**
  * @swagger
- * /gamification/levels:
+ * /api/gamification/level:
  *   get:
  *     summary: Get level information
  *     tags: [Gamification]
@@ -306,57 +209,36 @@ router.post('/rewards/:rewardId/purchase', authenticate, purchaseReward);
  *     responses:
  *       200:
  *         description: Level information
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 currentLevel:
- *                   type: number
- *                 xpProgress:
- *                   type: number
- *                 xpRequired:
- *                   type: number
- *                 availablePerks:
- *                   type: array
- *                   items:
- *                     type: string
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-// Level Routes
-router.get('/levels', authenticate, getLevelInfo);
+router.get('/api/gamification/level', authenticate, hasRole(['student']), getLevelInfo);
 
 /**
  * @swagger
- * /gamification/levels/up:
+ * /api/gamification/level/notify:
  *   post:
- *     summary: Level up notification
+ *     summary: Send level up notification
  *     tags: [Gamification]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Level up notification details
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 newLevel:
- *                   type: number
- *                 unlockedRewards:
- *                   type: array
- *                   items:
- *                     type: string
- *                 xpBonus:
- *                   type: number
+ *         description: Notification sent successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-router.post('/levels/up', authenticate, levelUpNotification);
+router.post('/api/gamification/level/notify', authenticate, hasRole(['student']), levelUpNotification);
 
 /**
  * @swagger
- * /gamification/subject-mastery:
+ * /api/gamification/subject-mastery:
  *   post:
- *     summary: Update subject mastery based on question performance
+ *     summary: Update subject mastery
  *     tags: [Gamification]
  *     security:
  *       - bearerAuth: []
@@ -368,93 +250,47 @@ router.post('/levels/up', authenticate, levelUpNotification);
  *             type: object
  *             required:
  *               - subjectId
- *               - correct
+ *               - score
  *             properties:
  *               subjectId:
+ *                 type: string
+ *               score:
  *                 type: number
- *               correct:
- *                 type: boolean
  *     responses:
  *       200:
  *         description: Subject mastery updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 masteryLevel:
- *                   type: number
- *                 accuracy:
- *                   type: number
- *                 totalAttempted:
- *                   type: number
- *                 correctAnswers:
- *                   type: number
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-router.post('/subject-mastery', authenticate, updateSubjectMastery);
+router.post('/api/gamification/subject-mastery', authenticate, hasRole(['student']), updateSubjectMastery);
 
 /**
  * @swagger
- * /gamification/activity:
+ * /api/gamification/activity:
  *   get:
- *     summary: Get user's activity log
+ *     summary: Get activity log
  *     tags: [Gamification]
  *     security:
  *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *           default: 1
- *         description: Page number
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           default: 10
- *         description: Number of items per page
  *     responses:
  *       200:
- *         description: Activity log with pagination
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 activities:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                       type:
- *                         type: string
- *                       xpEarned:
- *                         type: number
- *                       details:
- *                         type: object
- *                       timestamp:
- *                         type: string
- *                         format: date-time
- *                 pagination:
- *                   type: object
- *                   properties:
- *                     currentPage:
- *                       type: number
- *                     totalPages:
- *                       type: number
- *                     totalItems:
- *                       type: number
+ *         description: Activity log
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-router.get('/activity', authenticate, getActivityLog);
+router.get('/api/gamification/activity', authenticate, hasRole(['student']), getActivityLog);
 
 /**
  * @swagger
- * /gamification/activity:
+ * /api/gamification/activity/log:
  *   post:
- *     summary: Log a new activity
+ *     summary: Log an activity
  *     tags: [Gamification]
  *     security:
  *       - bearerAuth: []
@@ -465,33 +301,23 @@ router.get('/activity', authenticate, getActivityLog);
  *           schema:
  *             type: object
  *             required:
- *               - activityType
+ *               - type
+ *               - details
  *             properties:
- *               activityType:
+ *               type:
  *                 type: string
- *               xpEarned:
- *                 type: number
- *                 default: 0
  *               details:
  *                 type: object
  *     responses:
  *       200:
  *         description: Activity logged successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 activity_id:
- *                   type: string
- *                 activity_type:
- *                   type: string
- *                 xp_earned:
- *                   type: number
- *                 created_at:
- *                   type: string
- *                   format: date-time
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-router.post('/activity', authenticate, logActivity);
+router.post('/api/gamification/activity/log', authenticate, hasRole(['student']), logActivity);
 
 export default router;

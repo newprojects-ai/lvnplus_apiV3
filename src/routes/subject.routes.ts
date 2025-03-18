@@ -7,8 +7,7 @@ import {
   deleteSubject,
 } from '../controllers/subject.controller';
 import { authenticate } from '../middleware/auth';
-import { checkRole } from '../middleware/roles';
-import { validateSubjectCreation, validateSubjectUpdate } from '../middleware/validation';
+import { hasRole, validateSubjectCreation, validateSubjectUpdate } from '../middleware/validation';
 
 const router = Router();
 
@@ -20,7 +19,6 @@ const router = Router();
  *     tags: [Subjects]
  *     security:
  *       - bearerAuth: []
- *     description: Retrieve all subjects. Requires authentication.
  *     responses:
  *       200:
  *         description: List of subjects
@@ -59,14 +57,12 @@ router.get('/', authenticate, getSubjects);
  *     responses:
  *       201:
  *         description: Subject created successfully
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  */
-router.post(
-  '/',
-  authenticate,
-  checkRole(['ADMIN']),
-  validateSubjectCreation,
-  createSubject
-);
+router.post('/', authenticate, hasRole(['admin']), validateSubjectCreation, createSubject);
 
 /**
  * @swagger
@@ -85,6 +81,8 @@ router.post(
  *     responses:
  *       200:
  *         description: Subject details
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
  */
 router.get('/:id', authenticate, getSubject);
 
@@ -116,14 +114,12 @@ router.get('/:id', authenticate, getSubject);
  *     responses:
  *       200:
  *         description: Subject updated successfully
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  */
-router.put(
-  '/:id',
-  authenticate,
-  checkRole(['ADMIN']),
-  validateSubjectUpdate,
-  updateSubject
-);
+router.put('/:id', authenticate, hasRole(['admin']), validateSubjectUpdate, updateSubject);
 
 /**
  * @swagger
@@ -142,12 +138,11 @@ router.put(
  *     responses:
  *       200:
  *         description: Subject deleted successfully
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         $ref: '#/components/responses/ForbiddenError'
  */
-router.delete(
-  '/:id',
-  authenticate,
-  checkRole(['ADMIN']),
-  deleteSubject
-);
+router.delete('/:id', authenticate, hasRole(['admin']), deleteSubject);
 
 export default router;

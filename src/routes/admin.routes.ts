@@ -1,10 +1,9 @@
-import express from 'express';
+import { Router } from 'express';
 import { AdminController } from '../controllers/admin.controller';
-import { requireAuth } from '../middleware/auth.middleware';
-import { checkRole } from '../middleware/roles';
-import { adminLinkSchema, adminBulkLinkSchema } from '../validation/admin.validation';
+import { authenticate } from '../middleware/auth';
+import { hasRole, validateAdminGuardianLink, validateAdminTutorLink, validateAdminBulkTutorLink } from '../middleware/validation';
 
-const router = express.Router();
+const router = Router();
 const controller = new AdminController();
 
 /**
@@ -172,28 +171,30 @@ const controller = new AdminController();
  *         description: Forbidden - Not an admin
  */
 
-// Apply authentication and admin role middleware
-router.use(requireAuth);
-router.use(checkRole(['ADMIN']));
-
 // Guardian-Student Links
 router.post(
   '/link/guardian-student',
-  adminLinkSchema.guardianStudent,
+  authenticate,
+  hasRole(['admin']),
+  validateAdminGuardianLink,
   controller.linkGuardianStudent
 );
 
 // Tutor-Student Links
 router.post(
   '/link/tutor-student',
-  adminLinkSchema.tutorStudent,
+  authenticate,
+  hasRole(['admin']),
+  validateAdminTutorLink,
   controller.linkTutorStudent
 );
 
 // Bulk Tutor-Student Links
 router.post(
   '/link/tutor-students/bulk',
-  adminBulkLinkSchema.tutorStudents,
+  authenticate,
+  hasRole(['admin']),
+  validateAdminBulkTutorLink,
   controller.bulkLinkTutorStudents
 );
 

@@ -1,32 +1,36 @@
 import { Request, Response, NextFunction } from 'express';
+import type { Role } from '../types';
+import { AppError } from '../utils/error';
 
-export const checkRole = (allowedRoles: string[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    console.log('Checking roles - Allowed roles:', allowedRoles);
-    console.log('User role:', req.user?.role);
-
-    if (!req.user) {
-      console.log('No user object found in request');
-      return res.status(401).json({
-        error: 'Authentication required',
-      });
-    }
-
-    // Convert both user role and allowed roles to uppercase for case-insensitive comparison
-    const normalizedUserRole = req.user.role.toUpperCase();
-    const normalizedAllowedRoles = allowedRoles.map(role => role.toUpperCase());
-
-    const hasRole = normalizedAllowedRoles.includes(normalizedUserRole);
+// Role validation middleware
+export const hasRole = (allowedRoles: Role[]) => {
+  return (req: Request & { user?: { role?: Role; roles?: Role[] } }, _res: Response, next: NextFunction) => {
+    const userRole = req.user?.role;
+    const userRoles = req.user?.roles || [];
     
-    if (!hasRole) {
-      console.log('No matching roles found');
-      return res.status(403).json({
-        error: 'Insufficient permissions',
-        userRole: req.user.role,
-        allowedRoles: allowedRoles
-      });
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      // Check if user has any of the allowed roles as a backup
+      const hasAllowedRole = userRoles.some(role => allowedRoles.includes(role));
+      if (!hasAllowedRole) {
+        throw new AppError(403, `Access denied. Required roles: ${allowedRoles.join(', ')}`);
+      }
     }
+    
+    next();
+  };
+};
 
+// Multiple roles validation middleware
+export const hasAnyRole = (allowedRoles: Role[]) => {
+  return (req: Request & { user?: { roles?: Role[] } }, _res: Response, next: NextFunction) => {
+    const userRoles = req.user?.roles || [];
+    
+    const hasAllowedRole = userRoles.some((role: Role) => allowedRoles.includes(role));
+    
+    if (!hasAllowedRole) {
+      throw new AppError(403, `Access denied. Required one of roles: ${allowedRoles.join(', ')}`);
+    }
+    
     next();
   };
 };

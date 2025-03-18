@@ -1,88 +1,84 @@
-import prisma from '../lib/prisma';
+import { PrismaClient } from '@prisma/client';
 import { CreateTopicDTO, UpdateTopicDTO, TopicResponse } from '../types';
 import { NotFoundError } from '../utils/errors';
 
 export class TopicService {
-  async getTopics(subjectId: number): Promise<TopicResponse[]> {
-    const topics = await prisma.topics.findMany({
-      where: { subject_id: subjectId },
-      include: {
-        subjects: true,
-        subtopics: true,
-      },
-    });
+  private prisma: PrismaClient;
 
-    return topics.map(this.formatTopicResponse);
+  constructor() {
+    this.prisma = new PrismaClient();
+  }
+
+  async getTopics(): Promise<TopicResponse[]> {
+    const topics = await this.prisma.topics.findMany({
+      orderBy: {
+        topic_name: 'asc'
+      }
+    });
+    return topics;
   }
 
   async createTopic(data: CreateTopicDTO): Promise<TopicResponse> {
-    const topic = await prisma.topics.create({
+    const topic = await this.prisma.topics.create({
       data: {
-        subject_id: data.subjectId,
-        topic_name: data.topicName,
-        description: data.description,
-      },
-      include: {
-        subjects: true,
-        subtopics: true,
-      },
+        topic_name: data.name,
+        description: data.description || null,
+        subject_id: data.subjectId
+      }
     });
-
-    return this.formatTopicResponse(topic);
+    return topic;
   }
 
   async getTopic(id: number): Promise<TopicResponse> {
-    const topic = await prisma.topics.findUnique({
-      where: { topic_id: id },
-      include: {
-        subjects: true,
-        subtopics: true,
-      },
+    const topic = await this.prisma.topics.findUnique({
+      where: {
+        topic_id: id
+      }
     });
 
     if (!topic) {
       throw new NotFoundError('Topic not found');
     }
 
-    return this.formatTopicResponse(topic);
+    return topic;
   }
 
   async updateTopic(id: number, data: UpdateTopicDTO): Promise<TopicResponse> {
-    const topic = await prisma.topics.update({
-      where: { topic_id: id },
+    const topic = await this.prisma.topics.update({
+      where: {
+        topic_id: id
+      },
       data: {
-        topic_name: data.topicName,
+        topic_name: data.name,
         description: data.description,
-      },
-      include: {
-        subjects: true,
-        subtopics: true,
-      },
+        subject_id: data.subjectId
+      }
     });
 
-    return this.formatTopicResponse(topic);
+    return topic;
   }
 
   async deleteTopic(id: number): Promise<void> {
-    await prisma.topics.delete({
-      where: { topic_id: id },
-    });
+    try {
+      await this.prisma.topics.delete({
+        where: {
+          topic_id: id
+        }
+      });
+    } catch (error) {
+      throw new NotFoundError('Topic not found');
+    }
   }
 
-  private formatTopicResponse(topic: any): TopicResponse {
-    return {
-      id: topic.topic_id,
-      name: topic.topic_name,
-      description: topic.description,
-      subject: {
-        id: topic.subjects.subject_id,
-        name: topic.subjects.subject_name,
+  async getTopicsBySubject(subjectId: number): Promise<TopicResponse[]> {
+    const topics = await this.prisma.topics.findMany({
+      where: {
+        subject_id: subjectId
       },
-      subtopics: topic.subtopics.map((subtopic: any) => ({
-        id: subtopic.subtopic_id,
-        name: subtopic.subtopic_name,
-        description: subtopic.description,
-      })),
-    };
+      orderBy: {
+        topic_name: 'asc'
+      }
+    });
+    return topics;
   }
 }

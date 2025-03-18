@@ -1,83 +1,125 @@
-import prisma from '../lib/prisma';
+import { PrismaClient } from '@prisma/client';
 import { CreateSubtopicDTO, UpdateSubtopicDTO, SubtopicResponse } from '../types';
 import { NotFoundError } from '../utils/errors';
 
 export class SubtopicService {
-  async getSubtopics(topicId: number): Promise<SubtopicResponse[]> {
-    const subtopics = await prisma.subtopics.findMany({
-      where: { topic_id: topicId },
+  private prisma: PrismaClient;
+
+  constructor() {
+    this.prisma = new PrismaClient();
+  }
+
+  async getSubtopics(params: { topicId?: number }): Promise<SubtopicResponse[]> {
+    const where = params.topicId ? { topic_id: params.topicId } : {};
+    const subtopics = await this.prisma.subtopics.findMany({
+      where,
       include: {
         topics: {
           include: {
-            subjects: true,
-          },
-        },
-      },
+            subjects: true
+          }
+        }
+      }
     });
 
     return subtopics.map(this.formatSubtopicResponse);
   }
 
+  async getSubtopic(id: number): Promise<SubtopicResponse | null> {
+    const subtopic = await this.prisma.subtopics.findUnique({
+      where: { subtopic_id: id },
+      include: {
+        topics: {
+          include: {
+            subjects: true
+          }
+        }
+      }
+    });
+
+    if (!subtopic) {
+      return null;
+    }
+
+    return this.formatSubtopicResponse(subtopic);
+  }
+
   async createSubtopic(data: CreateSubtopicDTO): Promise<SubtopicResponse> {
-    const subtopic = await prisma.subtopics.create({
+    const subtopic = await this.prisma.subtopics.create({
       data: {
         topic_id: data.topicId,
-        subtopic_name: data.subtopicName,
-        description: data.description,
+        subtopic_name: data.name,
+        description: data.description || null
       },
       include: {
         topics: {
           include: {
-            subjects: true,
-          },
-        },
-      },
+            subjects: true
+          }
+        }
+      }
     });
 
     return this.formatSubtopicResponse(subtopic);
   }
 
-  async updateSubtopic(
-    id: number,
-    data: UpdateSubtopicDTO
-  ): Promise<SubtopicResponse> {
-    const subtopic = await prisma.subtopics.update({
+  async updateSubtopic(id: number, data: UpdateSubtopicDTO): Promise<SubtopicResponse> {
+    const subtopic = await this.prisma.subtopics.findUnique({
+      where: { subtopic_id: id }
+    });
+
+    if (!subtopic) {
+      throw new NotFoundError('Subtopic not found');
+    }
+
+    const updated = await this.prisma.subtopics.update({
       where: { subtopic_id: id },
       data: {
-        subtopic_name: data.subtopicName,
+        subtopic_name: data.name,
         description: data.description,
+        topic_id: data.topicId
       },
       include: {
         topics: {
           include: {
-            subjects: true,
-          },
-        },
-      },
+            subjects: true
+          }
+        }
+      }
     });
 
-    return this.formatSubtopicResponse(subtopic);
+    return this.formatSubtopicResponse(updated);
   }
 
   async deleteSubtopic(id: number): Promise<void> {
-    await prisma.subtopics.delete({
-      where: { subtopic_id: id },
+    const subtopic = await this.prisma.subtopics.findUnique({
+      where: { subtopic_id: id }
+    });
+
+    if (!subtopic) {
+      throw new NotFoundError('Subtopic not found');
+    }
+
+    await this.prisma.subtopics.delete({
+      where: { subtopic_id: id }
     });
   }
 
   private formatSubtopicResponse(subtopic: any): SubtopicResponse {
     return {
-      id: subtopic.subtopic_id,
-      name: subtopic.subtopic_name,
+      subtopic_id: subtopic.subtopic_id,
+      subtopic_name: subtopic.subtopic_name,
       description: subtopic.description,
       topic: {
-        id: subtopic.topics.topic_id,
-        name: subtopic.topics.topic_name,
+        topic_id: subtopic.topics.topic_id,
+        topic_name: subtopic.topics.topic_name,
         subject: {
-          id: subtopic.topics.subjects.subject_id,
-          name: subtopic.topics.subjects.subject_name,
-        },
+          subject_id: subtopic.topics.subjects.subject_id,
+          subject_name: subtopic.topics.subjects.subject_name
+        }
       },
+      created_at: subtopic.created_at,
+      updated_at: subtopic.updated_at
     };
   }
 }

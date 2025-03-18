@@ -5,27 +5,53 @@ import {
   getTopic,
   updateTopic,
   deleteTopic,
+  getTopicsBySubject
 } from '../controllers/topic.controller';
 import { authenticate } from '../middleware/auth';
-import { checkRole } from '../middleware/roles';
-import { validateTopicCreation, validateTopicUpdate } from '../middleware/validation';
+import { hasRole, validateTopicCreation, validateTopicUpdate } from '../middleware/validation';
 
 const router = Router();
 
 /**
  * @swagger
+ * /topics/subject/{subjectId}:
+ *   get:
+ *     summary: Get topics by subject
+ *     tags: [Topics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: subjectId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of topics for the subject
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Topic'
+ */
+router.get('/subject/:subjectId', authenticate, getTopicsBySubject);
+
+/**
+ * @swagger
  * /topics:
  *   get:
- *     summary: Get all topics for a subject
+ *     summary: Get all topics
  *     tags: [Topics]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
- *         name: subjectId
- *         required: true
+ *         name: subject
  *         schema:
- *           type: integer
+ *           type: string
+ *         description: Filter topics by subject ID
  *     responses:
  *       200:
  *         description: List of topics
@@ -51,22 +77,16 @@ router.get('/', authenticate, getTopics);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - subjectId
- *               - topicName
- *             properties:
- *               subjectId:
- *                 type: integer
- *               topicName:
- *                 type: string
- *               description:
- *                 type: string
+ *             $ref: '#/components/schemas/TopicInput'
  *     responses:
  *       201:
  *         description: Topic created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Topic'
  */
-router.post('/', authenticate, checkRole(['ADMIN']), validateTopicCreation, createTopic);
+router.post('/', authenticate, hasRole(['admin']), validateTopicCreation, createTopic);
 
 /**
  * @swagger
@@ -81,10 +101,14 @@ router.post('/', authenticate, checkRole(['ADMIN']), validateTopicCreation, crea
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *     responses:
  *       200:
  *         description: Topic details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Topic'
  */
 router.get('/:id', authenticate, getTopic);
 
@@ -101,23 +125,22 @@ router.get('/:id', authenticate, getTopic);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               topicName:
- *                 type: string
- *               description:
- *                 type: string
+ *             $ref: '#/components/schemas/TopicInput'
  *     responses:
  *       200:
  *         description: Topic updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Topic'
  */
-router.put('/:id', authenticate, checkRole(['ADMIN']), validateTopicUpdate, updateTopic);
+router.put('/:id', authenticate, hasRole(['admin']), validateTopicUpdate, updateTopic);
 
 /**
  * @swagger
@@ -132,11 +155,11 @@ router.put('/:id', authenticate, checkRole(['ADMIN']), validateTopicUpdate, upda
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *     responses:
- *       200:
+ *       204:
  *         description: Topic deleted successfully
  */
-router.delete('/:id', authenticate, checkRole(['ADMIN']), deleteTopic);
+router.delete('/:id', authenticate, hasRole(['admin']), deleteTopic);
 
 export default router;

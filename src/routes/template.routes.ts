@@ -1,23 +1,22 @@
 import { Router } from 'express';
+import { authenticate } from '../middleware/auth';
+import { hasRole, validateTemplateCreation, validateTemplateUpdate } from '../middleware/validation';
 import {
   getTemplates,
   createTemplate,
   getTemplate,
   updateTemplate,
-  deleteTemplate,
+  deleteTemplate
 } from '../controllers/template.controller';
-import { authenticate } from '../middleware/auth';
-import { checkRole } from '../middleware/roles';
-import { validateTemplateCreation, validateTemplateUpdate } from '../middleware/validation';
 
 const router = Router();
 
 /**
  * @swagger
- * /templates:
+ * /api/templates:
  *   get:
- *     summary: Get all templates
  *     tags: [Templates]
+ *     summary: Get all templates
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -31,25 +30,23 @@ const router = Router();
  *         name: boardId
  *         schema:
  *           type: integer
- *         description: Filter templates by exam board
+ *         description: Filter templates by board ID
  *     responses:
  *       200:
  *         description: List of templates
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Template'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-router.get('/', authenticate, getTemplates);
+router.get('/', authenticate, hasRole(['tutor', 'admin']), getTemplates);
 
 /**
  * @swagger
- * /templates:
+ * /api/templates:
  *   post:
- *     summary: Create a new template
  *     tags: [Templates]
+ *     summary: Create a new template
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -57,29 +54,43 @@ router.get('/', authenticate, getTemplates);
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/TemplateInput'
+ *             type: object
+ *             required:
+ *               - template_name
+ *               - board_id
+ *               - test_type
+ *               - timing_type
+ *             properties:
+ *               template_name:
+ *                 type: string
+ *               board_id:
+ *                 type: integer
+ *               test_type:
+ *                 type: string
+ *               timing_type:
+ *                 type: string
+ *               time_limit:
+ *                 type: integer
+ *               configuration:
+ *                 type: object
  *     responses:
  *       201:
  *         description: Template created successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Template'
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
-router.post(
-  '/',
-  authenticate,
-  checkRole(['TEACHER', 'ADMIN']),
-  validateTemplateCreation,
-  createTemplate
-);
+router.post('/', authenticate, hasRole(['tutor', 'admin']), validateTemplateCreation, createTemplate);
 
 /**
  * @swagger
- * /templates/{id}:
+ * /api/templates/{id}:
  *   get:
- *     summary: Get a template by ID
  *     tags: [Templates]
+ *     summary: Get a template by ID
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -87,24 +98,26 @@ router.post(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
+ *           type: integer
  *         description: Template ID
  *     responses:
  *       200:
  *         description: Template details
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Template'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Template not found
  */
-router.get('/:id', authenticate, getTemplate);
+router.get('/:id', authenticate, hasRole(['tutor', 'admin']), getTemplate);
 
 /**
  * @swagger
- * /templates/{id}:
+ * /api/templates/{id}:
  *   put:
- *     summary: Update a template
  *     tags: [Templates]
+ *     summary: Update a template
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -112,36 +125,47 @@ router.get('/:id', authenticate, getTemplate);
  *         name: id
  *         required: true
  *         schema:
- *           type: string
+ *           type: integer
  *         description: Template ID
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/TemplateInput'
+ *             type: object
+ *             properties:
+ *               template_name:
+ *                 type: string
+ *               board_id:
+ *                 type: integer
+ *               test_type:
+ *                 type: string
+ *               timing_type:
+ *                 type: string
+ *               time_limit:
+ *                 type: integer
+ *               configuration:
+ *                 type: object
  *     responses:
  *       200:
  *         description: Template updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Template'
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Template not found
  */
-router.put(
-  '/:id',
-  authenticate,
-  checkRole(['TEACHER', 'ADMIN']),
-  validateTemplateUpdate,
-  updateTemplate
-);
+router.put('/:id', authenticate, hasRole(['tutor', 'admin']), validateTemplateUpdate, updateTemplate);
 
 /**
  * @swagger
- * /templates/{id}:
+ * /api/templates/{id}:
  *   delete:
- *     summary: Delete a template
  *     tags: [Templates]
+ *     summary: Delete a template
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -149,17 +173,18 @@ router.put(
  *         name: id
  *         required: true
  *         schema:
- *           type: string
+ *           type: integer
  *         description: Template ID
  *     responses:
  *       200:
  *         description: Template deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Template not found
  */
-router.delete(
-  '/:id',
-  authenticate,
-  checkRole(['TEACHER', 'ADMIN']),
-  deleteTemplate
-);
+router.delete('/:id', authenticate, hasRole(['tutor', 'admin']), deleteTemplate);
 
 export default router;

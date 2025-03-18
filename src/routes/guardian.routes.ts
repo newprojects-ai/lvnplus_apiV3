@@ -1,11 +1,9 @@
-import express from 'express';
+import { Router } from 'express';
 import { GuardianController } from '../controllers/guardian.controller';
-import { requireGuardianRole } from '../middleware/guardian-auth.middleware';
-import { requireAuth } from '../middleware/auth.middleware';
-import { validateRequest } from '../middleware/validation';
-import { guardianLinkSchema } from '../validation/guardian.validation';
+import { authenticate } from '../middleware/auth';
+import { hasRole, validateGuardianLink, validateGuardianConfirm } from '../middleware/validation';
 
-const router = express.Router();
+const router = Router();
 const controller = new GuardianController();
 
 /**
@@ -13,7 +11,7 @@ const controller = new GuardianController();
  * /api/guardians/link-request:
  *   post:
  *     summary: Request to establish a parent-student relationship
- *     description: Creates a link request from the authenticated guardian (identified by JWT token) to the specified student
+ *     description: Creates a link request from the authenticated guardian to the specified student
  *     tags: [Guardians]
  *     security:
  *       - bearerAuth: []
@@ -24,54 +22,42 @@ const controller = new GuardianController();
  *           schema:
  *             type: object
  *             required:
- *               - studentId
- *               - relationship
+ *               - student_email
+ *               - relation_type
  *             properties:
- *               studentId:
+ *               student_email:
  *                 type: string
- *                 description: The ID of the student that the authenticated guardian wants to link with
- *                 example: "123456789"
- *               relationship:
+ *                 format: email
+ *                 description: Email of the student to link with
+ *               relation_type:
  *                 type: string
- *                 enum: ["PARENT"]
- *                 description: The type of relationship the authenticated guardian will have with the student
- *                 example: "PARENT"
+ *                 enum: [parent]
+ *                 description: The type of relationship
  *     responses:
  *       201:
  *         description: Link request created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 linkId:
- *                   type: string
- *                   description: ID of the created link request
- *                 guardianId:
- *                   type: string
- *                   description: ID of the authenticated guardian who made the request
- *                 studentId:
- *                   type: string
- *                   description: ID of the student to be linked
- *                 status:
- *                   type: string
- *                   enum: ["PENDING"]
- *                   description: Initial status of the link request
  *       400:
- *         description: Invalid input data
+ *         description: Invalid request data
  *       401:
- *         description: Unauthorized - Guardian not authenticated
+ *         description: Unauthorized
  *       403:
- *         description: Forbidden - User is not a guardian
+ *         description: Forbidden - User is not a parent
  *       404:
  *         description: Student not found
  */
+router.post(
+  '/link-request',
+  authenticate,
+  hasRole(['parent']),
+  validateGuardianLink,
+  controller.requestLink
+);
 
 /**
  * @swagger
  * /api/guardians/{guardianId}/students/{studentId}:
  *   delete:
- *     summary: Remove link with a student
+ *     summary: Deactivate link with a student
  *     tags: [Guardians]
  *     security:
  *       - bearerAuth: []
@@ -81,23 +67,27 @@ const controller = new GuardianController();
  *         required: true
  *         schema:
  *           type: string
- *           format: bigint
  *       - in: path
  *         name: studentId
  *         required: true
  *         schema:
  *           type: string
- *           format: bigint
  *     responses:
  *       200:
- *         description: Link removed successfully
+ *         description: Link deactivated successfully
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Forbidden - Not authorized to remove this link
+ *         description: Forbidden - Not authorized to deactivate this link
  *       404:
  *         description: Link not found
  */
+router.delete(
+  '/:guardianId/students/:studentId',
+  authenticate,
+  hasRole(['parent']),
+  controller.deactivateLink
+);
 
 /**
  * @swagger
@@ -113,36 +103,45 @@ const controller = new GuardianController();
  *       401:
  *         description: Unauthorized
  *       403:
- *         description: Forbidden - Not a guardian
+ *         description: Forbidden - Not a parent
  */
+router.get(
+  '/students',
+  authenticate,
+  hasRole(['parent']),
+  controller.getStudents
+);
 
 /**
  * @swagger
- * /api/students/confirm-guardian/{linkId}:
+ * /api/guardians/confirm-link/{relationshipId}:
  *   post:
  *     summary: Confirm or reject a guardian link request
- *     tags: [Students]
+ *     tags: [Guardians]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: linkId
+ *         name: relationshipId
  *         required: true
  *         schema:
  *           type: string
- *           format: bigint
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - accepted
  *             properties:
  *               accepted:
  *                 type: boolean
  *     responses:
  *       200:
  *         description: Link request processed successfully
+ *       400:
+ *         description: Invalid request data
  *       401:
  *         description: Unauthorized
  *       403:
@@ -150,33 +149,35 @@ const controller = new GuardianController();
  *       404:
  *         description: Link request not found
  */
-
-// Apply authentication middleware
-router.use(requireAuth);
-
-// Guardian routes (require guardian role)
 router.post(
-  '/link-request',
-  requireGuardianRole,
-  validateRequest(guardianLinkSchema),
-  controller.requestLink
-);
-
-router.delete(
-  '/:guardianId/students/:studentId',
-  requireGuardianRole,
-  controller.removeLink
-);
-
-router.get('/students', requireGuardianRole, controller.getStudents);
-
-// Student routes (require student role)
-router.post(
-  '/confirm-guardian/:linkId',
-  validateRequest({ accepted: 'boolean|required' }),
+  '/confirm-link/:relationshipId',
+  authenticate,
+  hasRole(['student']),
+  validateGuardianConfirm,
   controller.confirmLink
 );
 
-router.get('/guardians', controller.getGuardians);
+/**
+ * @swagger
+ * /api/guardians/guardians:
+ *   get:
+ *     summary: Get guardians linked to the student
+ *     tags: [Guardians]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Guardians retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - Not a student
+ */
+router.get(
+  '/guardians',
+  authenticate,
+  hasRole(['student']),
+  controller.getGuardians
+);
 
 export default router;

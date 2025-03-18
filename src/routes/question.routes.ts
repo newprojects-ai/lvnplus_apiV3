@@ -12,8 +12,7 @@ import {
   getSubtopics,
 } from '../controllers/question.controller';
 import { authenticate } from '../middleware/auth';
-import { checkRole } from '../middleware/roles';
-import { validateQuestionCreation, validateQuestionUpdate, validateBulkQuestionCreation } from '../middleware/validation';
+import { hasRole, validateQuestionCreate, validateQuestionUpdate, validateBulkQuestionCreate } from '../middleware/validation';
 
 const router = Router();
 
@@ -147,117 +146,7 @@ router.get('/random', authenticate, getRandomQuestions);
  *                     perPage:
  *                       type: integer
  */
-router.get('/', authenticate, getQuestions);
-
-/**
- * @swagger
- * /questions/filter:
- *   get:
- *     summary: Filter questions by various criteria
- *     tags: [Questions]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: topicId
- *         schema:
- *           type: integer
- *       - in: query
- *         name: subtopicId
- *         schema:
- *           type: integer
- *       - in: query
- *         name: difficulty
- *         schema:
- *           type: integer
- *           minimum: 0
- *           maximum: 5
- *       - in: query
- *         name: examBoard
- *         schema:
- *           type: integer
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 100
- *           default: 20
- *       - in: query
- *         name: offset
- *         schema:
- *           type: integer
- *           minimum: 0
- *           default: 0
- *     responses:
- *       200:
- *         description: Filtered list of questions
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Question'
- *                 pagination:
- *                   type: object
- *                   properties:
- *                     total:
- *                       type: integer
- *                     offset:
- *                       type: integer
- *                     limit:
- *                       type: integer
- */
-router.get('/filter', authenticate, filterQuestions);
-
-/**
- * @swagger
- * /questions/random:
- *   get:
- *     summary: Get random questions based on criteria
- *     tags: [Questions]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: count
- *         required: true
- *         schema:
- *           type: integer
- *           minimum: 1
- *           maximum: 50
- *       - in: query
- *         name: difficulty
- *         schema:
- *           type: integer
- *           minimum: 0
- *           maximum: 5
- *       - in: query
- *         name: topicIds
- *         schema:
- *           type: array
- *           items:
- *             type: integer
- *       - in: query
- *         name: subtopicIds
- *         schema:
- *           type: array
- *           items:
- *             type: integer
- *     responses:
- *       200:
- *         description: Random questions matching criteria
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Question'
- */
-router.get('/random', authenticate, getRandomQuestions);
+router.get('/', authenticate, hasRole(['tutor', 'admin']), getQuestions);
 
 /**
  * @swagger
@@ -281,13 +170,7 @@ router.get('/random', authenticate, getRandomQuestions);
  *             schema:
  *               $ref: '#/components/schemas/Question'
  */
-router.post(
-  '/',
-  authenticate,
-  checkRole(['TEACHER', 'ADMIN']),
-  validateQuestionCreation,
-  createQuestion
-);
+router.post('/', authenticate, hasRole(['tutor', 'admin']), validateQuestionCreate, createQuestion);
 
 /**
  * @swagger
@@ -311,7 +194,7 @@ router.post(
  *             schema:
  *               $ref: '#/components/schemas/Question'
  */
-router.get('/:id', authenticate, getQuestion);
+router.get('/:id', authenticate, hasRole(['tutor', 'admin']), getQuestion);
 
 /**
  * @swagger
@@ -341,13 +224,7 @@ router.get('/:id', authenticate, getQuestion);
  *             schema:
  *               $ref: '#/components/schemas/Question'
  */
-router.put(
-  '/:id',
-  authenticate,
-  checkRole(['TEACHER', 'ADMIN']),
-  validateQuestionUpdate,
-  updateQuestion
-);
+router.put('/:id', authenticate, hasRole(['tutor', 'admin']), validateQuestionUpdate, updateQuestion);
 
 /**
  * @swagger
@@ -367,12 +244,7 @@ router.put(
  *       200:
  *         description: Question deleted successfully
  */
-router.delete(
-  '/:id',
-  authenticate,
-  checkRole(['TEACHER', 'ADMIN']),
-  deleteQuestion
-);
+router.delete('/:id', authenticate, hasRole(['tutor', 'admin']), deleteQuestion);
 
 /**
  * @swagger
@@ -405,13 +277,7 @@ router.delete(
  *               items:
  *                 $ref: '#/components/schemas/Question'
  */
-router.post(
-  '/bulk-create',
-  authenticate,
-  checkRole(['TEACHER', 'ADMIN']),
-  validateBulkQuestionCreation,
-  bulkCreateQuestions
-);
+router.post('/bulk-create', authenticate, hasRole(['tutor', 'admin']), validateBulkQuestionCreate, bulkCreateQuestions);
 
 /**
  * @swagger

@@ -1,25 +1,53 @@
 import { Router } from 'express';
-import { 
-  createTestPlan, 
-  getTestPlan, 
-  updateTestPlan, 
-  deleteTestPlan 
-} from '../controllers/testPlan.controller';
-import { 
-  validateTestPlanCreation, 
-  validateTestPlanUpdate 
-} from '../middleware/validation';
-import { authenticate } from '../middleware/auth';
-import { checkRole } from '../middleware/roles';
+import { hasRole } from '../middleware/roles';
+import { validateTestPlanCreate, validateTestPlanUpdate } from '../middleware/validation';
+import { TestPlanController } from '../controllers/testPlan.controller';
 
 const router = Router();
+const testPlanController = new TestPlanController();
 
 /**
  * @swagger
- * /api/tests/plans:
+ * /test-plans:
+ *   get:
+ *     summary: Get all test plans
+ *     tags: [TestPlans]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: studentId
+ *         schema:
+ *           type: string
+ *         description: Filter by student ID
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [NOT_STARTED, IN_PROGRESS, COMPLETED]
+ *         description: Filter by test status
+ *     responses:
+ *       200:
+ *         description: List of test plans
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/TestPlan'
+ */
+router.get(
+  '/',
+  hasRole(['parent', 'tutor']),
+  testPlanController.getTestPlans.bind(testPlanController)
+);
+
+/**
+ * @swagger
+ * /test-plans:
  *   post:
  *     summary: Create a new test plan
- *     tags: [Test Plans]
+ *     tags: [TestPlans]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -35,60 +63,48 @@ const router = Router();
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/TestPlan'
- *       400:
- *         description: Invalid request data
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Insufficient permissions (requires TEACHER, PARENT, or STUDENT role)
  */
 router.post(
   '/',
-  authenticate,
-  checkRole(['TEACHER', 'PARENT', 'STUDENT']),
-  validateTestPlanCreation,
-  createTestPlan
+  hasRole(['parent', 'tutor']),
+  validateTestPlanCreate,
+  testPlanController.createTestPlan.bind(testPlanController)
 );
 
 /**
  * @swagger
- * /api/tests/plans/{planId}:
+ * /test-plans/{planId}:
  *   get:
  *     summary: Get a test plan by ID
- *     tags: [Test Plans]
+ *     tags: [TestPlans]
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: planId
  *         required: true
  *         schema:
  *           type: string
- *         description: Test plan ID
  *     responses:
  *       200:
- *         description: Test plan retrieved successfully
+ *         description: Test plan details
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/TestPlan'
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Test plan not found
  */
 router.get(
   '/:planId',
-  authenticate,
-  getTestPlan
+  hasRole(['parent', 'tutor', 'student']),
+  testPlanController.getTestPlan.bind(testPlanController)
 );
 
 /**
  * @swagger
- * /api/tests/plans/{planId}:
- *   patch:
+ * /test-plans/{planId}:
+ *   put:
  *     summary: Update a test plan
- *     tags: [Test Plans]
+ *     tags: [TestPlans]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -102,34 +118,28 @@ router.get(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             allOf:
- *               - $ref: '#/components/schemas/TestPlanInput'
- *               - type: object
- *                 properties:
- *                   testPlanId:
- *                     type: string
- *                   plannedAt:
- *                     type: string
- *                     format: date-time
+ *             $ref: '#/components/schemas/TestPlanInput'
  *     responses:
  *       200:
  *         description: Test plan updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TestPlan'
  */
-router.patch(
+router.put(
   '/:planId',
-  authenticate,
-  checkRole(['TEACHER', 'PARENT']),
+  hasRole(['parent', 'tutor']),
   validateTestPlanUpdate,
-  updateTestPlan
+  testPlanController.updateTestPlan.bind(testPlanController)
 );
 
 /**
  * @swagger
- * /api/tests/plans/{planId}:
+ * /test-plans/{planId}:
  *   delete:
  *     summary: Delete a test plan
- *     tags: [Test Plans]
+ *     tags: [TestPlans]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -139,14 +149,13 @@ router.patch(
  *         schema:
  *           type: string
  *     responses:
- *       204:
+ *       200:
  *         description: Test plan deleted successfully
  */
 router.delete(
   '/:planId',
-  authenticate,
-  checkRole(['TEACHER', 'PARENT']),
-  deleteTestPlan
+  hasRole(['parent', 'tutor']),
+  testPlanController.deleteTestPlan.bind(testPlanController)
 );
 
 export default router;

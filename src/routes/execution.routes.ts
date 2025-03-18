@@ -19,7 +19,7 @@ const router = Router();
 console.log('Execution Routes: Initializing routes...');
 
 // Debug logging for routes
-router.use((req, res, next) => {
+router.use((req, _res, next) => {
   console.log('Execution Routes Middleware:', {
     baseUrl: req.baseUrl,
     path: req.path,
@@ -124,6 +124,7 @@ router.get('/executions/:executionId', authenticate, getExecution);
  *         description: Answer submitted successfully
  */
 router.post('/executions/:executionId/answers', authenticate, submitAnswer);
+router.post('/executions/:executionId/submit', authenticate, submitAnswer); // Alias for compatibility
 
 /**
  * @swagger
@@ -279,7 +280,6 @@ router.post('/executions/:executionId/submitAllAnswers', authenticate, submitAll
  *       404:
  *         description: Test execution not found
  */
-router.post('/tests/executions/:executionId/start', authenticate, startExecution);
 router.post('/executions/:executionId/start', authenticate, startExecution);
 
 /**
@@ -304,9 +304,7 @@ router.post('/executions/:executionId/start', authenticate, startExecution);
  *             schema:
  *               $ref: '#/components/schemas/TestExecutionResults'
  */
-router.get('/results/:executionId', authenticate, getTestExecutionResults);
 router.get('/executions/:executionId/results', authenticate, getTestExecutionResults);
-router.get('/tests/executions/:executionId/results', authenticate, getTestExecutionResults);
 
 /**
  * @swagger
@@ -331,13 +329,6 @@ router.get('/tests/executions/:executionId/results', authenticate, getTestExecut
  *         description: Unauthorized
  */
 router.post('/executions/:executionId/calculate-score', authenticate, calculateTestScore);
-
-// Alternative routes without /tests prefix
-router.post('/executions/:executionId/submit', authenticate, submitAnswer);
-router.post('/executions/:executionId/complete', authenticate, completeExecution);
-router.post('/executions/:executionId/pause', authenticate, pauseTest);
-router.post('/executions/:executionId/resume', authenticate, resumeTest);
-router.post('/executions/:executionId/submitAllAnswers', authenticate, submitAllAnswers);
 
 // Debug route to inspect test execution data
 router.get('/debug/:executionId', authenticate, async (req, res) => {
@@ -370,7 +361,7 @@ router.get('/debug/:executionId', authenticate, async (req, res) => {
       testPlanId: execution.test_plan_id
     });
 
-    res.json({
+    return res.json({
       executionId: execution.execution_id,
       testData: execution.test_data,
       testDataType: typeof execution.test_data,
@@ -378,13 +369,13 @@ router.get('/debug/:executionId', authenticate, async (req, res) => {
       studentId: execution.student_id,
       testPlanId: execution.test_plan_id
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Debug route error', {
       errorName: error.name,
       errorMessage: error.message,
       errorStack: error.stack
     });
-    res.status(500).json({ 
+    return res.status(500).json({ 
       message: 'Internal server error', 
       error: error.message 
     });
@@ -392,20 +383,27 @@ router.get('/debug/:executionId', authenticate, async (req, res) => {
 });
 
 // Add a simple root route for debugging
-router.get('/', (req, res) => {
-  res.json({
+router.get('/', (_req, res) => {
+  return res.json({
     message: 'Execution Routes are working!',
     routes: router.stack
-      .filter((r) => r.route)
-      .map((r) => ({
-        path: r.route.path,
-        methods: Object.keys(r.route.methods)
-      }))
+      .filter((r) => r.route !== undefined)
+      .map((r) => {
+        if (r.route) {
+          return {
+            path: r.route.path,
+            methods: Object.keys(r.route as any)
+              .filter(key => key !== 'path' && key !== 'stack')
+          };
+        }
+        return null;
+      })
+      .filter(Boolean)
   });
 });
 
 // Catch-all route for debugging
-router.use((req, res, next) => {
+router.use((req, _res, next) => {
   console.error('Unhandled route in execution routes:', {
     method: req.method,
     path: req.path,

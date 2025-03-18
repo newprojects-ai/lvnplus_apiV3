@@ -1,9 +1,9 @@
-import express from 'express';
+import { Router } from 'express';
 import { PerformanceTrackingController } from '../controllers/performance-tracking.controller';
-import { requireAuth } from '../middleware/auth.middleware';
-import { requireGuardianRole } from '../middleware/guardian-auth.middleware';
+import { authenticate } from '../middleware/auth';
+import { validateRole } from '../middleware/validation';
 
-const router = express.Router();
+const router = Router();
 const controller = new PerformanceTrackingController();
 
 /**
@@ -23,24 +23,24 @@ const controller = new PerformanceTrackingController();
  *             schema:
  *               type: object
  *               properties:
- *                 testScores:
+ *                 test_scores:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       testId:
+ *                       test_id:
  *                         type: string
  *                       score:
  *                         type: number
  *                       date:
  *                         type: string
  *                         format: date-time
- *                 subjectProgress:
+ *                 subject_progress:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       subjectId:
+ *                       subject_id:
  *                         type: string
  *                       progress:
  *                         type: number
@@ -55,12 +55,20 @@ const controller = new PerformanceTrackingController();
  *                         type: string
  *                       name:
  *                         type: string
- *                       earnedAt:
+ *                       earned_at:
  *                         type: string
  *                         format: date-time
  *       401:
  *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - User is not a student
  */
+router.get(
+  '/my-performance',
+  authenticate,
+  validateRole(['student']),
+  controller.getStudentPerformance
+);
 
 /**
  * @swagger
@@ -86,24 +94,24 @@ const controller = new PerformanceTrackingController();
  *             schema:
  *               type: object
  *               properties:
- *                 testScores:
+ *                 test_scores:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       testId:
+ *                       test_id:
  *                         type: string
  *                       score:
  *                         type: number
  *                       date:
  *                         type: string
  *                         format: date-time
- *                 subjectProgress:
+ *                 subject_progress:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       subjectId:
+ *                       subject_id:
  *                         type: string
  *                       progress:
  *                         type: number
@@ -118,7 +126,7 @@ const controller = new PerformanceTrackingController();
  *                         type: string
  *                       name:
  *                         type: string
- *                       earnedAt:
+ *                       earned_at:
  *                         type: string
  *                         format: date-time
  *       401:
@@ -128,6 +136,12 @@ const controller = new PerformanceTrackingController();
  *       404:
  *         description: Student not found
  */
+router.get(
+  '/students/:studentId',
+  authenticate,
+  validateRole(['parent', 'tutor']),
+  controller.getStudentPerformance
+);
 
 /**
  * @swagger
@@ -153,27 +167,27 @@ const controller = new PerformanceTrackingController();
  *             schema:
  *               type: object
  *               properties:
- *                 groupAverage:
+ *                 group_average:
  *                   type: number
- *                 subjectPerformance:
+ *                 subject_performance:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       subjectId:
+ *                       subject_id:
  *                         type: string
  *                       average:
  *                         type: number
- *                       highestScore:
+ *                       highest_score:
  *                         type: number
- *                       lowestScore:
+ *                       lowest_score:
  *                         type: number
- *                 studentPerformance:
+ *                 student_performance:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
- *                       studentId:
+ *                       student_id:
  *                         type: string
  *                       name:
  *                         type: string
@@ -189,17 +203,11 @@ const controller = new PerformanceTrackingController();
  *       404:
  *         description: Group not found
  */
-
-router.use(requireAuth);
-
-// Routes for students to view their own performance
-router.get('/my-performance', (req, res, next) => {
-  req.params.studentId = req.user?.id;
-  controller.getStudentPerformance(req, res, next);
-});
-
-// Routes for guardians/tutors
-router.get('/students/:studentId', requireGuardianRole, controller.getStudentPerformance);
-router.get('/groups/:groupId', requireGuardianRole, controller.getGroupPerformance);
+router.get(
+  '/groups/:groupId',
+  authenticate,
+  validateRole(['tutor']),
+  controller.getGroupPerformance
+);
 
 export default router;

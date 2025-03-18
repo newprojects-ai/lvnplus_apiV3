@@ -1,72 +1,87 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
+
+type StudyGroup = Prisma.study_groupsGetPayload<{
+  include: {
+    students: true;
+    subjects: true;
+  }
+}>;
+
+type Student = Prisma.usersGetPayload<{
+  include: {
+    test_executions: true;
+    activity_log: true;
+  }
+}>;
+
+interface GroupMemberResponse {
+  id: string;
+  name: string;
+  email: string;
+  joined_at: Date;
+  recent_tests: Array<{
+    id: string;
+    status: string;
+    score: number | null;
+    completed_at: Date | null;
+  }>;
+  recent_activity: Array<{
+    id: string;
+    activity_type: string;
+    details: string | null;
+    created_at: Date | null;
+  }>;
+}
 
 @Injectable()
 export class StudyGroupService {
   constructor(private prisma: PrismaService) {}
 
-  async createGroup(tutorId: string, name: string, description?: string) {
+  async createGroup(tutorId: bigint, name: string, description: string, subjects?: bigint[]): Promise<StudyGroup> {
     return this.prisma.study_groups.create({
       data: {
         group_name: name,
         description,
-        tutor_id: tutorId,
+        tutor_id: tutorId.toString(),
         created_at: new Date(),
-        updated_at: new Date()
-      }
-    });
-  }
-
-  async getGroup(groupId: string) {
-    return this.prisma.study_groups.findUnique({
-      where: { group_id: groupId },
-      include: {
-        tutor: true,
-        students: {
-          include: {
-            test_executions: {
-              where: {
-                status: 'COMPLETED'
-              },
-              orderBy: {
-                completed_at: 'desc'
-              },
-              take: 5
-            },
-            activity_log: {
-              orderBy: {
-                created_at: 'desc'
-              },
-              take: 10
-            }
-          }
-        }
-      }
-    });
-  }
-
-  async getTutorGroups(tutorId: string) {
-    return this.prisma.study_groups.findMany({
-      where: {
-        tutor_id: tutorId
+        updated_at: new Date(),
+        subjects: subjects ? {
+          connect: subjects.map(id => ({ subject_id: id.toString() }))
+        } : undefined
       },
       include: {
-        students: true
+        students: true,
+        subjects: true
       }
     });
   }
 
-  async addStudent(groupId: string, studentId: string) {
+  async getGroups(tutorId: bigint): Promise<StudyGroup[]> {
+    return this.prisma.study_groups.findMany({
+      where: {
+        tutor_id: tutorId.toString()
+      },
+      include: {
+        students: true,
+        subjects: true
+      }
+    });
+  }
+
+  async addMember(groupId: bigint, studentId: bigint): Promise<StudyGroup> {
     const group = await this.prisma.study_groups.update({
-      where: { group_id: groupId },
+      where: { group_id: groupId.toString() },
       data: {
         students: {
-          connect: { user_id: studentId }
+          connect: { user_id: studentId.toString() }
         },
         updated_at: new Date()
       },
       include: {
-        students: true
+        students: true,
+        subjects: true
       }
     });
 
@@ -76,7 +91,7 @@ export class StudyGroupService {
         activity_type: 'group_joined',
         details: `Joined study group: ${group.group_name}`,
         user: {
-          connect: { user_id: studentId }
+          connect: { user_id: studentId.toString() }
         }
       }
     });
@@ -84,14 +99,18 @@ export class StudyGroupService {
     return group;
   }
 
-  async removeStudent(groupId: string, studentId: string) {
+  async removeMember(groupId: bigint, studentId: bigint): Promise<StudyGroup> {
     const group = await this.prisma.study_groups.update({
-      where: { group_id: groupId },
+      where: { group_id: groupId.toString() },
       data: {
         students: {
-          disconnect: { user_id: studentId }
+          disconnect: { user_id: studentId.toString() }
         },
         updated_at: new Date()
+      },
+      include: {
+        students: true,
+        subjects: true
       }
     });
 
@@ -101,7 +120,7 @@ export class StudyGroupService {
         activity_type: 'group_left',
         details: `Left study group: ${group.group_name}`,
         user: {
-          connect: { user_id: studentId }
+          connect: { user_id: studentId.toString() }
         }
       }
     });
@@ -109,39 +128,31 @@ export class StudyGroupService {
     return group;
   }
 
-  async getStudentGroups(studentId: string) {
-    return this.prisma.study_groups.findMany({
-      where: {
-        students: {
-          some: {
-            user_id: studentId
-          }
-        }
+  async deactivateGroup(groupId: bigint, tutorId: bigint): Promise<StudyGroup> {
+    return this.prisma.study_groups.update({
+      where: { 
+        group_id: groupId.toString(),
+        tutor_id: tutorId.toString()
+      },
+      data: {
+        active: false,
+        updated_at: new Date()
       },
       include: {
-        tutor: true,
-        students: true
+        students: true,
+        subjects: true
       }
     });
   }
 
-  async getGroupPerformance(groupId: string) {
+  async getGroupMembers(groupId: bigint): Promise<GroupMemberResponse[] | null> {
     const group = await this.prisma.study_groups.findUnique({
-      where: { group_id: groupId },
+      where: { group_id: groupId.toString() },
       include: {
         students: {
           include: {
-            test_executions: {
-              where: {
-                status: 'COMPLETED'
-              },
-              orderBy: {
-                completed_at: 'desc'
-              },
-              include: {
-                test_plan: true
-              }
-            }
+            test_executions: true,
+            activity_log: true
           }
         }
       }
@@ -149,59 +160,32 @@ export class StudyGroupService {
 
     if (!group) return null;
 
-    // Calculate overall group performance
-    const studentPerformance = group.students.map(student => {
-      const executions = student.test_executions;
-      const averageScore = executions.length > 0
-        ? executions.reduce((acc, exec) => acc + exec.score, 0) / executions.length
-        : 0;
-
-      return {
-        studentId: student.user_id,
-        averageScore,
-        executions: executions.map(exec => ({
-          testId: exec.test_plan_id,
-          testName: exec.test_plan.name,
-          score: exec.score,
-          date: exec.completed_at
+    return group.students.map((student: Student) => ({
+      id: student.user_id.toString(),
+      name: student.name || '',
+      email: student.email,
+      joined_at: student.created_at,
+      recent_tests: student.test_executions
+        .filter((test): test is NonNullable<typeof student.test_executions[0]> => test !== null)
+        .filter(test => test.status === 'COMPLETED')
+        .sort((a, b) => (b.completed_at?.getTime() || 0) - (a.completed_at?.getTime() || 0))
+        .slice(0, 5)
+        .map(test => ({
+          id: test.execution_id.toString(),
+          status: test.status,
+          score: test.score,
+          completed_at: test.completed_at
+        })),
+      recent_activity: student.activity_log
+        .filter((log): log is NonNullable<typeof student.activity_log[0]> => log !== null)
+        .sort((a, b) => (b.created_at?.getTime() || 0) - (a.created_at?.getTime() || 0))
+        .slice(0, 10)
+        .map(log => ({
+          id: log.activity_id.toString(),
+          activity_type: log.activity_type,
+          details: log.details || '',
+          created_at: log.created_at
         }))
-      };
-    });
-
-    // Calculate subject-wise performance
-    const subjectPerformance = group.students.flatMap(s => s.test_executions)
-      .reduce((acc, execution) => {
-        const subject = execution.test_plan.subject;
-        if (!acc[subject]) {
-          acc[subject] = {
-            totalScore: 0,
-            count: 0,
-            scores: []
-          };
-        }
-        
-        acc[subject].totalScore += execution.score;
-        acc[subject].count += 1;
-        acc[subject].scores.push(execution.score);
-        
-        return acc;
-      }, {} as Record<string, { totalScore: number; count: number; scores: number[] }>);
-
-    const subjectStats = Object.entries(subjectPerformance).map(([subject, data]) => ({
-      subject,
-      averageScore: data.totalScore / data.count,
-      highestScore: Math.max(...data.scores),
-      lowestScore: Math.min(...data.scores),
-      testsCompleted: data.count
     }));
-
-    return {
-      groupId: group.group_id,
-      name: group.group_name,
-      studentCount: group.students.length,
-      studentPerformance,
-      subjectPerformance: subjectStats,
-      overallAverage: studentPerformance.reduce((acc, s) => acc + s.averageScore, 0) / studentPerformance.length || 0
-    };
   }
 }
