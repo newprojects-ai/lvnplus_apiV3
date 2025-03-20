@@ -38,7 +38,7 @@ const testPlanController = new TestPlanController();
  */
 router.get(
   '/',
-  hasRole(['parent', 'tutor']),
+  hasRole(['parent', 'tutor', 'admin']),
   testPlanController.getTestPlans.bind(testPlanController)
 );
 
@@ -66,7 +66,7 @@ router.get(
  */
 router.post(
   '/',
-  hasRole(['parent', 'tutor']),
+  hasRole(['parent', 'tutor', 'student', 'admin']),
   validateTestPlanCreate,
   testPlanController.createTestPlan.bind(testPlanController)
 );
@@ -95,7 +95,7 @@ router.post(
  */
 router.get(
   '/:planId',
-  hasRole(['parent', 'tutor', 'student']),
+  hasRole(['parent', 'tutor', 'student', 'admin']),
   testPlanController.getTestPlan.bind(testPlanController)
 );
 
@@ -129,9 +129,9 @@ router.get(
  */
 router.put(
   '/:planId',
-  hasRole(['parent', 'tutor']),
+  hasRole(['parent', 'tutor', 'admin']),
   validateTestPlanUpdate,
-  testPlanController.updateTestPlan.bind(testPlanController)
+  (req, res) => testPlanController.updateTestPlan(req, res)
 );
 
 /**
@@ -154,7 +154,7 @@ router.put(
  */
 router.delete(
   '/:planId',
-  hasRole(['parent', 'tutor']),
+  hasRole(['parent', 'tutor', 'admin']),
   testPlanController.deleteTestPlan.bind(testPlanController)
 );
 

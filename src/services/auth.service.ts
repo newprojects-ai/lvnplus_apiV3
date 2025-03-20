@@ -1,9 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import type { LoginUserDTO, RegisterUserDTO, AuthResponse, Role } from '../types';
 import { AppError } from '../utils/error';
 import winston from 'winston';
+import { LoginUserDTO, RegisterUserDTO, AuthResponse } from '../types/auth';
 
 // Initialize logger
 const logger = winston.createLogger({
@@ -27,9 +27,6 @@ if (process.env.NODE_ENV !== 'production') {
     ),
   }));
 }
-
-// Role validation helper
-const normalizeRole = (role: string): Role => role.toLowerCase() as Role;
 
 export class AuthService {
   private prisma: PrismaClient;
@@ -79,47 +76,41 @@ export class AuthService {
         throw new AppError(401, 'Invalid email or password');
       }
 
-      // Normalize the requested role and user roles for consistent comparison
-      const requestedRole = normalizeRole(credentials.role);
-      const userRoles = user.user_roles.map(ur => normalizeRole(ur.roles.role_name));
+      // Always store and compare roles in lowercase
+      const requestedRole = credentials.role.toLowerCase();
+      const userRoles = user.user_roles.map(ur => ur.roles.role_name.toLowerCase());
       
       if (!userRoles.includes(requestedRole)) {
         logger.warn(`Login attempt failed: User ${credentials.email} attempted to login with invalid role ${credentials.role}`);
-        throw new AppError(403, `You do not have permission to login as ${credentials.role}`);
+        throw new AppError(403, `Access denied. Required role: ${credentials.role}`);
       }
 
       const token = jwt.sign(
         {
           userId: user.user_id.toString(),
           email: user.email,
-          role: requestedRole,
-          roles: userRoles,
+          roles: userRoles, // Store all user roles in token
         },
         process.env.JWT_SECRET || 'your-secret-key',
         { expiresIn: '24h' }
       );
 
-      logger.info(`User ${credentials.email} successfully logged in as ${requestedRole}`);
+      logger.info(`User ${credentials.email} logged in successfully with roles: ${userRoles.join(', ')}`);
 
       return {
         token,
         user: {
-          id: user.user_id,
+          id: user.user_id.toString(),
           email: user.email,
-          first_name: user.first_name || '',
-          last_name: user.last_name || '',
           roles: userRoles,
-        }
+        },
       };
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
       }
-      logger.error('Login error:', {
-        email: credentials.email,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-      throw new AppError(500, 'An unexpected error occurred');
+      logger.error('Login error:', error);
+      throw new AppError(500, 'An error occurred during login');
     }
   }
 
@@ -135,7 +126,7 @@ export class AuthService {
       }
 
       const hashedPassword = await bcrypt.hash(data.password, 10);
-      const requestedRole = normalizeRole(data.role);
+      const requestedRole = data.role.toLowerCase();
 
       const user = await this.prisma.users.create({
         data: {
@@ -162,28 +153,25 @@ export class AuthService {
         },
       });
 
-      const userRoles = user.user_roles.map(ur => normalizeRole(ur.roles.role_name));
+      const userRoles = user.user_roles.map(ur => ur.roles.role_name.toLowerCase());
 
       const token = jwt.sign(
         {
           userId: user.user_id.toString(),
           email: user.email,
-          role: requestedRole,
-          roles: userRoles,
+          roles: userRoles, // Store all user roles in token
         },
         process.env.JWT_SECRET || 'your-secret-key',
         { expiresIn: '24h' }
       );
 
-      logger.info(`User ${data.email} successfully registered as ${requestedRole}`);
+      logger.info(`User ${data.email} successfully registered with roles: ${userRoles.join(', ')}`);
 
       return {
         token,
         user: {
-          id: user.user_id,
+          id: user.user_id.toString(),
           email: user.email,
-          first_name: user.first_name || '',
-          last_name: user.last_name || '',
           roles: userRoles,
         }
       };
@@ -191,10 +179,7 @@ export class AuthService {
       if (error instanceof AppError) {
         throw error;
       }
-      logger.error('Registration error:', {
-        email: data.email,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      logger.error('Registration error:', error);
       throw new AppError(500, 'An unexpected error occurred');
     }
   }

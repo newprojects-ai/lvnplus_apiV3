@@ -36,7 +36,8 @@ const router = Router();
  *               items:
  *                 $ref: '#/components/schemas/Topic'
  */
-router.get('/subject/:subjectId', authenticate, getTopicsBySubject);
+// Topic viewing routes - All roles can view
+router.get('/subject/:subjectId', authenticate, hasRole(['admin', 'tutor', 'parent', 'student']), getTopicsBySubject);
 
 /**
  * @swagger
@@ -62,31 +63,7 @@ router.get('/subject/:subjectId', authenticate, getTopicsBySubject);
  *               items:
  *                 $ref: '#/components/schemas/Topic'
  */
-router.get('/', authenticate, getTopics);
-
-/**
- * @swagger
- * /topics:
- *   post:
- *     summary: Create a new topic
- *     tags: [Topics]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/TopicInput'
- *     responses:
- *       201:
- *         description: Topic created successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Topic'
- */
-router.post('/', authenticate, hasRole(['admin']), validateTopicCreation, createTopic);
+router.get('/', authenticate, hasRole(['admin', 'tutor', 'parent', 'student']), getTopics);
 
 /**
  * @swagger
@@ -110,7 +87,32 @@ router.post('/', authenticate, hasRole(['admin']), validateTopicCreation, create
  *             schema:
  *               $ref: '#/components/schemas/Topic'
  */
-router.get('/:id', authenticate, getTopic);
+router.get('/:id', authenticate, hasRole(['admin', 'tutor', 'parent', 'student']), getTopic);
+
+/**
+ * @swagger
+ * /topics:
+ *   post:
+ *     summary: Create a new topic
+ *     tags: [Topics]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/TopicInput'
+ *     responses:
+ *       201:
+ *         description: Topic created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Topic'
+ */
+// Topic management routes - Admin only
+router.post('/', authenticate, hasRole(['admin']), validateTopicCreation, createTopic);
 
 /**
  * @swagger

@@ -1,169 +1,166 @@
-import { Request, Response } from 'express';
-import { hasRole } from '../middleware/roles';
-import { CreateTestPlanDTO, UpdateTestPlanDTO, Role } from '../types';
+import { Response } from 'express';
 import { TestPlanService } from '../services/testPlan.service';
-import { NotFoundError, ValidationError } from '../utils/errors';
+import { UnauthorizedError, ValidationError } from '../utils/errors';
+import type { UserRequest } from '../types/auth.types';
+import type { CreateTestPlanDTO, UpdateTestPlanDTO } from '../types/testPlan.types';
+
+const testPlanService = new TestPlanService();
 
 export class TestPlanController {
-  private testPlanService: TestPlanService;
-
-  constructor() {
-    this.testPlanService = new TestPlanService();
-  }
-
-  async createTestPlan(req: Request, res: Response) {
+  async createTestPlan(req: UserRequest, res: Response) {
     try {
-      const userId = req.user?.userId;
+      const testPlanData = req.body as CreateTestPlanDTO;
+      const userId = req.user?.id;
+
       if (!userId) {
-        throw new ValidationError('User ID is required');
+        throw new UnauthorizedError('User not authenticated');
       }
 
-      const testPlanData: CreateTestPlanDTO = {
-        template_id: req.body.template_id,
-        student_id: req.body.student_id,
-        scheduled_for: req.body.scheduled_for,
-        description: req.body.description
-      };
+      // Check if user has tutor or parent role
+      const userRoles = (req.user?.roles || []).map((role: string) => role.toLowerCase());
+      if (!userRoles.includes('tutor') && !userRoles.includes('parent')) {
+        throw new UnauthorizedError('Only tutors and parents can create test plans');
+      }
 
-      const testPlan = await this.testPlanService.createTestPlan(
-        userId.toString(),
-        testPlanData
-      );
+      // If user is a student, they can only create test plans for themselves
+      if (userRoles.includes('student') && testPlanData.studentId.toString() !== userId.toString()) {
+        throw new UnauthorizedError('Students can only create test plans for themselves');
+      }
 
-      res.status(201).json(testPlan);
+      const testPlan = await testPlanService.createTestPlan(userId, testPlanData);
+      return res.status(201).json(testPlan);
     } catch (error) {
-      if (error instanceof ValidationError) {
-        res.status(400).json({ error: error.message });
-      } else {
-        console.error('Error creating test plan:', error);
-        res.status(500).json({ error: 'Internal server error' });
+      console.error('Error in createTestPlan:', error);
+      if (error instanceof UnauthorizedError) {
+        return res.status(403).json({ error: error.message });
       }
+      if (error instanceof ValidationError) {
+        return res.status(400).json({ error: error.message });
+      }
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to create test plan'
+      });
     }
   }
 
-  async getTestPlans(req: Request, res: Response) {
+  async getTestPlans(req: UserRequest, res: Response) {
     try {
-      const userId = req.user?.userId;
+      const userId = req.user?.id;
       if (!userId) {
-        throw new ValidationError('User ID is required');
+        throw new UnauthorizedError('User not authenticated');
       }
 
       const filters = {
-        userId: userId.toString(),
-        studentId: req.query.student_id?.toString(),
-        status: req.query.status?.toString()
+        userId,
+        studentId: req.query.studentId as string | undefined,
+        status: req.query.status as string | undefined
       };
 
-      const testPlans = await this.testPlanService.getTestPlans(filters);
-      res.json(testPlans);
+      // If user is a student, they can only view their own test plans
+      const userRoles = (req.user?.roles || []).map((role: string) => role.toLowerCase());
+      if (userRoles.includes('student') && filters.studentId && filters.studentId !== userId) {
+        throw new UnauthorizedError('Students can only view their own test plans');
+      }
+
+      const testPlans = await testPlanService.getTestPlans(filters);
+      return res.json(testPlans);
     } catch (error) {
-      console.error('Error getting test plans:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      console.error('Error in getTestPlans:', error);
+      if (error instanceof UnauthorizedError) {
+        return res.status(403).json({ error: error.message });
+      }
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to get test plans'
+      });
     }
   }
 
-  async getTestPlan(req: Request, res: Response) {
+  async getTestPlan(req: UserRequest, res: Response) {
     try {
-      const userId = req.user?.userId;
+      const userId = req.user?.id;
       if (!userId) {
-        throw new ValidationError('User ID is required');
+        throw new UnauthorizedError('User not authenticated');
       }
 
-      const testPlanId = req.params.planId;
-      if (!testPlanId) {
-        throw new ValidationError('Test plan ID is required');
-      }
-
-      const testPlan = await this.testPlanService.getTestPlan(
-        testPlanId,
-        userId.toString()
-      );
-
+      const testPlan = await testPlanService.getTestPlan(req.params.id, userId);
       if (!testPlan) {
-        throw new NotFoundError('Test plan not found');
+        return res.status(404).json({ error: 'Test plan not found' });
       }
 
-      res.json(testPlan);
-    } catch (error) {
-      if (error instanceof NotFoundError) {
-        res.status(404).json({ error: error.message });
-      } else if (error instanceof ValidationError) {
-        res.status(400).json({ error: error.message });
-      } else {
-        console.error('Error getting test plan:', error);
-        res.status(500).json({ error: 'Internal server error' });
+      // Check if user has access to this test plan
+      const userRoles = (req.user?.roles || []).map((role: string) => role.toLowerCase());
+      if (userRoles.includes('student') && testPlan.student.userId.toString() !== userId.toString()) {
+        throw new UnauthorizedError('Access denied');
       }
+
+      return res.json(testPlan);
+    } catch (error) {
+      console.error('Error in getTestPlan:', error);
+      if (error instanceof UnauthorizedError) {
+        return res.status(403).json({ error: error.message });
+      }
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to get test plan'
+      });
     }
   }
 
-  async updateTestPlan(req: Request, res: Response) {
+  async updateTestPlan(req: UserRequest, res: Response) {
     try {
-      const userId = req.user?.userId;
+      const userId = req.user?.id;
       if (!userId) {
-        throw new ValidationError('User ID is required');
+        throw new UnauthorizedError('User not authenticated');
       }
 
-      const testPlanId = req.params.planId;
-      if (!testPlanId) {
-        throw new ValidationError('Test plan ID is required');
+      // Check if user has tutor or parent role
+      const userRoles = (req.user?.roles || []).map((role: string) => role.toLowerCase());
+      if (!userRoles.includes('tutor') && !userRoles.includes('parent')) {
+        throw new UnauthorizedError('Only tutors and parents can update test plans');
       }
 
-      const updateData: UpdateTestPlanDTO = {
-        scheduled_for: req.body.scheduled_for,
-        description: req.body.description,
-        status: req.body.status
-      };
-
-      const testPlan = await this.testPlanService.updateTestPlan(
-        testPlanId,
-        userId.toString(),
-        updateData
-      );
-
+      const updateData = req.body as UpdateTestPlanDTO;
+      const testPlan = await testPlanService.updateTestPlan(req.params.id, userId, updateData);
       if (!testPlan) {
-        throw new NotFoundError('Test plan not found');
+        return res.status(404).json({ error: 'Test plan not found' });
       }
-
-      res.json(testPlan);
+      return res.json(testPlan);
     } catch (error) {
-      if (error instanceof NotFoundError) {
-        res.status(404).json({ error: error.message });
-      } else if (error instanceof ValidationError) {
-        res.status(400).json({ error: error.message });
-      } else {
-        console.error('Error updating test plan:', error);
-        res.status(500).json({ error: 'Internal server error' });
+      console.error('Error in updateTestPlan:', error);
+      if (error instanceof UnauthorizedError) {
+        return res.status(403).json({ error: error.message });
       }
+      if (error instanceof ValidationError) {
+        return res.status(400).json({ error: error.message });
+      }
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to update test plan'
+      });
     }
   }
 
-  async deleteTestPlan(req: Request, res: Response) {
+  async deleteTestPlan(req: UserRequest, res: Response) {
     try {
-      const userId = req.user?.userId;
+      const userId = req.user?.id;
       if (!userId) {
-        throw new ValidationError('User ID is required');
+        throw new UnauthorizedError('User not authenticated');
       }
 
-      const testPlanId = req.params.planId;
-      if (!testPlanId) {
-        throw new ValidationError('Test plan ID is required');
+      // Check if user has tutor or parent role
+      const userRoles = (req.user?.roles || []).map((role: string) => role.toLowerCase());
+      if (!userRoles.includes('tutor') && !userRoles.includes('parent')) {
+        throw new UnauthorizedError('Only tutors and parents can delete test plans');
       }
 
-      await this.testPlanService.deleteTestPlan(
-        testPlanId,
-        userId.toString()
-      );
-
-      res.status(204).send();
+      await testPlanService.deleteTestPlan(req.params.id, userId);
+      return res.status(204).send();
     } catch (error) {
-      if (error instanceof NotFoundError) {
-        res.status(404).json({ error: error.message });
-      } else if (error instanceof ValidationError) {
-        res.status(400).json({ error: error.message });
-      } else {
-        console.error('Error deleting test plan:', error);
-        res.status(500).json({ error: 'Internal server error' });
+      console.error('Error in deleteTestPlan:', error);
+      if (error instanceof UnauthorizedError) {
+        return res.status(403).json({ error: error.message });
       }
+      return res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to delete test plan'
+      });
     }
   }
 }

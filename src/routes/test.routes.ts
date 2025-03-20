@@ -15,9 +15,11 @@ import { hasRole, validateTestPlanCreate } from '../middleware/validation';
 
 const router = Router();
 
+// Test plan routes
+
 /**
  * @swagger
- * /api/tests/plan:
+ * /api/tests/plans:
  *   post:
  *     summary: Create a new test plan
  *     tags: [Tests]
@@ -30,16 +32,42 @@ const router = Router();
  *           schema:
  *             type: object
  *             required:
- *               - templateId
  *               - studentId
+ *               - boardId
+ *               - testType
+ *               - timingType
  *             properties:
- *               templateId:
- *                 type: string
  *               studentId:
  *                 type: string
- *               scheduledFor:
+ *               boardId:
+ *                 type: number
+ *               testType:
  *                 type: string
- *                 format: date-time
+ *                 enum: [TOPIC, MIXED, MENTAL_ARITHMETIC]
+ *               timingType:
+ *                 type: string
+ *                 enum: [TIMED, UNTIMED]
+ *               timeLimit:
+ *                 type: number
+ *               templateId:
+ *                 type: string
+ *               configuration:
+ *                 type: object
+ *                 properties:
+ *                   topics:
+ *                     type: array
+ *                     items:
+ *                       type: number
+ *                   subtopics:
+ *                     type: array
+ *                     items:
+ *                       type: number
+ *                   totalQuestionCount:
+ *                     type: number
+ *                     minimum: 1
+ *                   difficulty:
+ *                     type: string
+ *                     enum: [ALL, EASY, MEDIUM, HARD]
  *     responses:
  *       201:
  *         description: Test plan created successfully
@@ -50,11 +78,17 @@ const router = Router();
  *       403:
  *         description: Forbidden
  */
-router.post('/plan', authenticate, hasRole(['tutor', 'parent']), validateTestPlanCreate, createTestPlan);
+router.post(
+  '/plans',
+  authenticate,
+  hasRole(['tutor', 'parent', 'student']),
+  validateTestPlanCreate,
+  createTestPlan
+);
 
 /**
  * @swagger
- * /api/tests/plan/{id}:
+ * /api/tests/plans/{id}:
  *   get:
  *     summary: Get a test plan by ID
  *     tags: [Tests]
@@ -76,11 +110,11 @@ router.post('/plan', authenticate, hasRole(['tutor', 'parent']), validateTestPla
  *       404:
  *         description: Test plan not found
  */
-router.get('/plan/:id', authenticate, hasRole(['tutor', 'parent', 'student']), getTestPlan);
+router.get('/plans/:id', authenticate, hasRole(['admin', 'tutor', 'parent', 'student']), getTestPlan);
 
 /**
  * @swagger
- * /api/tests/student/{studentId}:
+ * /api/tests/student/{studentId}/tests:
  *   get:
  *     summary: Get all tests for a student
  *     tags: [Tests]
@@ -101,25 +135,27 @@ router.get('/plan/:id', authenticate, hasRole(['tutor', 'parent', 'student']), g
  *         name: from
  *         schema:
  *           type: string
- *           format: date
+ *           format: date-time
  *       - in: query
  *         name: to
  *         schema:
  *           type: string
- *           format: date
+ *           format: date-time
  *     responses:
  *       200:
- *         description: List of student's tests
+ *         description: List of tests
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Forbidden
  */
-router.get('/student/:studentId', authenticate, hasRole(['tutor', 'parent', 'student']), getStudentTests);
+router.get('/student/:studentId/tests', authenticate, hasRole(['tutor', 'parent']), getStudentTests);
+
+// Test execution routes
 
 /**
  * @swagger
- * /api/tests/{planId}/start:
+ * /api/tests/executions/{executionId}/start:
  *   post:
  *     summary: Start a test execution
  *     tags: [Tests]
@@ -127,7 +163,7 @@ router.get('/student/:studentId', authenticate, hasRole(['tutor', 'parent', 'stu
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
- *         name: planId
+ *         name: executionId
  *         required: true
  *         schema:
  *           type: string
@@ -139,15 +175,15 @@ router.get('/student/:studentId', authenticate, hasRole(['tutor', 'parent', 'stu
  *       403:
  *         description: Forbidden
  *       404:
- *         description: Test plan not found
+ *         description: Test execution not found
  */
-router.post('/:planId/start', authenticate, hasRole(['student']), startTest);
+router.post('/executions/:executionId/start', authenticate, hasRole(['student']), startTest);
 
 /**
  * @swagger
- * /api/tests/{executionId}/submit:
- *   put:
- *     summary: Submit an answer for a test
+ * /api/tests/executions/{executionId}/submit:
+ *   post:
+ *     summary: Submit an answer for a test question
  *     tags: [Tests]
  *     security:
  *       - bearerAuth: []
@@ -166,31 +202,24 @@ router.post('/:planId/start', authenticate, hasRole(['student']), startTest);
  *             required:
  *               - questionId
  *               - answer
- *               - timeSpent
  *             properties:
  *               questionId:
  *                 type: string
  *               answer:
  *                 type: string
- *               timeSpent:
- *                 type: number
  *     responses:
  *       200:
  *         description: Answer submitted successfully
- *       400:
- *         description: Invalid request data
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Forbidden
- *       404:
- *         description: Test execution not found
  */
-router.put('/:executionId/submit', authenticate, hasRole(['student']), submitTest);
+router.post('/executions/:executionId/submit', authenticate, hasRole(['student']), submitTest);
 
 /**
  * @swagger
- * /api/tests/{executionId}/status:
+ * /api/tests/executions/{executionId}/status:
  *   get:
  *     summary: Get test execution status
  *     tags: [Tests]
@@ -212,11 +241,11 @@ router.put('/:executionId/submit', authenticate, hasRole(['student']), submitTes
  *       404:
  *         description: Test execution not found
  */
-router.get('/:executionId/status', authenticate, hasRole(['student', 'tutor', 'parent']), getTestStatus);
+router.get('/executions/:executionId/status', authenticate, hasRole(['student', 'tutor', 'parent']), getTestStatus);
 
 /**
  * @swagger
- * /api/tests/{executionId}/results:
+ * /api/tests/executions/{executionId}/results:
  *   get:
  *     summary: Get test results
  *     tags: [Tests]
@@ -238,11 +267,11 @@ router.get('/:executionId/status', authenticate, hasRole(['student', 'tutor', 'p
  *       404:
  *         description: Test execution not found
  */
-router.get('/:executionId/results', authenticate, hasRole(['student', 'tutor', 'parent']), getTestResults);
+router.get('/executions/:executionId/results', authenticate, hasRole(['student', 'tutor', 'parent']), getTestResults);
 
 /**
  * @swagger
- * /api/tests/{executionId}/complete:
+ * /api/tests/executions/{executionId}/complete:
  *   post:
  *     summary: Complete a test execution
  *     tags: [Tests]
@@ -264,11 +293,11 @@ router.get('/:executionId/results', authenticate, hasRole(['student', 'tutor', '
  *       404:
  *         description: Test execution not found
  */
-router.post('/:executionId/complete', authenticate, hasRole(['student']), completeTest);
+router.post('/executions/:executionId/complete', authenticate, hasRole(['student']), completeTest);
 
 /**
  * @swagger
- * /api/tests/{executionId}/submit-all:
+ * /api/tests/executions/{executionId}/answers:
  *   post:
  *     summary: Submit all answers for a test
  *     tags: [Tests]
@@ -296,26 +325,19 @@ router.post('/:executionId/complete', authenticate, hasRole(['student']), comple
  *                   required:
  *                     - questionId
  *                     - answer
- *                     - timeSpent
  *                   properties:
  *                     questionId:
  *                       type: string
  *                     answer:
  *                       type: string
- *                     timeSpent:
- *                       type: number
  *     responses:
  *       200:
  *         description: All answers submitted successfully
- *       400:
- *         description: Invalid request data
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Forbidden
- *       404:
- *         description: Test execution not found
  */
-router.post('/:executionId/submit-all', authenticate, hasRole(['student']), submitAllAnswers);
+router.post('/executions/:executionId/answers', authenticate, hasRole(['student']), submitAllAnswers);
 
 export default router;

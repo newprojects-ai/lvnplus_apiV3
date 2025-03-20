@@ -1,13 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
-import { UnauthorizedError } from '../utils/errors';
+import { AppError } from '../utils/error';
 
 declare global {
   namespace Express {
     interface Request {
       user?: {
-        id: bigint;
+        id: string;
         email: string;
         roles: string[];
       };
@@ -15,54 +15,51 @@ declare global {
   }
 }
 
+// Helper function to normalize roles
+const normalizeRole = (role: string): string => role.toLowerCase();
+
 export const authenticate = async (
   req: Request,
-  res: Response,
+  _: Response,
   next: NextFunction
 ) => {
   try {
     const token = extractToken(req);
-    console.log('Authentication Middleware - Token:', token ? 'Present' : 'Missing');
-
+    
     if (!token) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Authentication required'
-      });
+      return next(new AppError(401, 'Authentication required'));
     }
 
     if (!process.env.JWT_SECRET) {
-      return res.status(500).json({
-        error: 'Internal server error',
-        message: 'Authentication configuration error'
-      });
+      return next(new AppError(500, 'Authentication configuration error'));
     }
 
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
-      console.log('Authentication Middleware - Token decoded:', JSON.stringify(decoded, null, 2));
     } catch (error) {
       const message = error instanceof jwt.TokenExpiredError 
         ? 'Token expired' 
         : 'Invalid token';
       
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message
-      });
+      return next(new AppError(401, message));
     }
 
     // Ensure we have a valid user ID
-    const userId = decoded.userId ? BigInt(decoded.userId) : null;
+    const userId = decoded.userId ? decoded.userId : null;
     const userEmail = decoded.email;
 
     if (!userId && !userEmail) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Invalid token format'
-      });
+      return next(new AppError(401, 'Invalid token format'));
     }
+
+    // Ensure roles are present and normalized
+    if (!decoded.roles || !Array.isArray(decoded.roles)) {
+      return next(new AppError(401, 'Invalid token: missing roles'));
+    }
+
+    // Normalize roles to lowercase
+    const normalizedRoles = decoded.roles.map(normalizeRole);
 
     // Fetch user details from database to ensure they still exist and get latest roles
     const user = await prisma.users.findFirst({
@@ -82,33 +79,29 @@ export const authenticate = async (
     });
 
     if (!user) {
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'User not found'
-      });
+      return next(new AppError(401, 'User not found'));
     }
 
-    // Attach user to request
+    // Set user info in request
     req.user = {
-      id: user.user_id,
+      id: user.user_id.toString(),
       email: user.email,
-      roles: user.user_roles.map(ur => ur.roles.role_name)
+      roles: normalizedRoles,
     };
 
     next();
   } catch (error) {
-    console.error('Authentication Middleware - Unexpected error:', error);
-    return res.status(500).json({
-      error: 'Internal server error',
-      message: 'Authentication error'
-    });
+    console.error('Authentication error:', error);
+    next(new AppError(500, 'Authentication failed'));
   }
 };
 
 function extractToken(req: Request): string | null {
-  if (req.headers.authorization?.startsWith('Bearer ')) {
-    return req.headers.authorization.substring(7);
-  }
-  
-  return req.cookies?.token || null;
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return null;
+
+  const [bearer, token] = authHeader.split(' ');
+  if (bearer !== 'Bearer' || !token) return null;
+
+  return token;
 }

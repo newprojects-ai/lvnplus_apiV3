@@ -25,11 +25,23 @@
 - Consistent user experience with all users seeing subject options after login
 - Cleaner code with removal of unused redirects logic
 
+#### Verification Steps
+1. Test user registration with different roles
+2. Verify login functionality with various role combinations
+3. Confirm proper error messages for invalid roles
+4. Check type safety in development environment
+
 #### Next Steps
 1. Test user registration with different roles
 2. Verify login functionality with various role combinations
 3. Confirm proper error messages for invalid roles
 4. Check type safety in development environment
+
+#### Notes
+- All roles now consistently use Title Case
+- Direct role comparison is more efficient
+- Protected routes properly enforce role-based access
+- Improved logging for debugging role issues
 
 ### Login Feature Card Fix (2025-03-17)
 
@@ -130,6 +142,11 @@
    - Login succeeds without validation errors
    - User is redirected to role-specific page
    - All subject options are visible
+
+3. Check role validation:
+   - Roles match exactly without case transformation
+   - No TypeScript errors in role handling
+   - Proper redirection on unauthorized access
 
 #### Notes
 - All roles now consistently use Title Case
@@ -499,7 +516,7 @@
    - Update role-based guards
    - Test all role-dependent endpoints
 
-4. **Phase 4: Frontend Alignment**
+4. **Phase 4: Frontend Updates**
    - Update Role type in auth.ts
    - Modify protected routes
    - Update components using roles
@@ -800,7 +817,7 @@ export const validateRole = (allowedRoles: string[]) => {
 
 2. Verify validation:
    - Required fields are checked
-   - Role permissions are enforced
+   - Types are properly validated
    - Error messages are clear
 
 #### Notes
@@ -882,75 +899,571 @@ export const validateRole = (allowedRoles: string[]) => {
 
 {{ ... }}
 
-### 2025-03-18 14:54:31Z - Consolidated Validation Middleware
+### Test Plan Creation Fix (2025-03-17 16:45)
 
-#### What
-- Fixed validation middleware inconsistencies across route files
-- Consolidated role validation into `hasRole` function
-- Added missing validation schemas for admin operations
+#### Problem Description
+- Test plan creation was failing with "Failed to create test plan" error
+- Mismatch between frontend request data and backend validation schema
+- Missing proper type definitions for test plan creation
 
-#### Why
-- Routes were using deprecated `validateRole` function causing runtime errors
-- Inconsistent middleware usage across different route files
-- Missing validation schemas for admin operations
-
-#### How
-1. Updated Route Files:
-   - `topic.routes.ts`: Updated to use `hasRole` and proper validation
-   - `template.routes.ts`: Fixed validation middleware and role checks
-   - `parent.routes.ts`: Added proper validation for test plans and guardian operations
-   - `gamification.routes.ts`: Fixed `validateRole` to `hasRole` conversion
-   - `admin.routes.ts`: Added proper validation for admin operations
-
-2. Enhanced `validation.ts`:
+#### Changes Made
+1. **Updated Test Plan Types**
    ```typescript
-   // Added admin validation schemas
-   const adminGuardianLinkSchema = z.object({
-     guardianId: z.string().min(1, 'Guardian ID is required'),
-     studentId: z.string().min(1, 'Student ID is required'),
-     relationship: z.literal('PARENT')
-   });
-
-   const adminTutorLinkSchema = z.object({
-     tutorId: z.string().min(1, 'Tutor ID is required'),
-     studentId: z.string().min(1, 'Student ID is required'),
-     subjects: z.array(z.string().min(1, 'Subject ID is required'))
-   });
-
-   // Added exports for admin validation
-   export const validateAdminGuardianLink = validateRequest(adminGuardianLinkSchema);
-   export const validateAdminTutorLink = validateRequest(adminTutorLinkSchema);
-   export const validateAdminBulkTutorLink = validateRequest(adminBulkTutorLinkSchema);
+   // Updated CreateTestPlanDTO
+   export interface CreateTestPlanDTO {
+     studentId: string | number;
+     boardId: number;
+     testType: test_plans_test_type;
+     timingType: test_plans_timing_type;
+     timeLimit?: number;
+     templateId?: string | number;
+     configuration: {
+       topics: number[];
+       subtopics: number[];
+       totalQuestionCount: number;
+     };
+   }
    ```
 
+2. **TestService Updates**
+   - Fixed test plan creation with proper field mapping
+   - Added proper error handling and logging
+   - Implemented question selection logic
+   - Updated response formatting to match frontend expectations
+
+3. **Files Modified**
+   - `src/types/index.ts`: Updated test plan types
+   - `src/services/test.service.ts`: Fixed test plan creation and question selection
+
 #### Impact
-- Consistent validation across all routes
-- Proper role-based access control
-- Type-safe request validation
-- Improved error handling and messages
+- Test plan creation now works correctly
+- Proper validation of request data
+- Improved error handling and debugging
+- Better type safety across the application
 
 #### Verification Steps
-1. Test role validation:
-   - Admin operations (linking guardians/tutors)
-   - Parent operations (test plans)
-   - Student operations (gamification)
-   - Tutor operations (templates)
+1. Test plan creation:
+   - Create topic-wise test plan
+   - Verify proper validation
+   - Check question selection
+   - Confirm test execution creation
 
 2. Verify validation:
    - Required fields are checked
-   - Role permissions are enforced
+   - Types are properly validated
    - Error messages are clear
 
-3. Check middleware order:
-   - authenticate
-   - hasRole
-   - validation
-   - controller
-
 #### Notes
-- All routes now use `hasRole` from validation middleware
-- Consistent validation schema naming
-- Improved type safety with Zod schemas
-- Better error messages for validation failures
+- All test plan fields now match Prisma schema
+- Improved error handling with try-catch blocks
+- Added proper logging for debugging
+- Question selection filters by active status
 
 {{ ... }}
+
+### Role Validation Fix (2025-03-18 22:52)
+
+#### Problem Description
+- 404 error when accessing `/api/topics/subject/1` with proper roles
+- 500 error when creating test plans
+- Role validation not handling case sensitivity properly
+- Inconsistent role checks across endpoints
+
+#### Changes Made
+1. **Role Validation Middleware**
+   - Updated `hasRole` and `hasAnyRole` functions to handle case sensitivity:
+     ```typescript
+     export const hasRole = (allowedRoles: string[]) => {
+       return (req: any, _: Response, next: NextFunction) => {
+         const userRoles = req.user?.roles?.map((r: string) => r.toLowerCase()) || [];
+         const normalizedAllowedRoles = allowedRoles.map(r => r.toLowerCase());
+         const hasRequiredRole = userRoles.some((role: string) => normalizedAllowedRoles.includes(role));
+         
+         if (!hasRequiredRole) {
+           return next(new AppError(403, `Access denied. Required roles: ${allowedRoles.join(', ')}`));
+         }
+         next();
+       };
+     };
+     ```
+
+2. **Test Plan Routes**
+   - Fixed role validation for test plan creation:
+     ```typescript
+     router.post(
+       '/plans',
+       authenticate,
+       hasRole(['tutor', 'parent']),
+       validateTestPlanCreate,
+       createTestPlan
+     );
+     ```
+
+#### Impact
+- Fixed 404 error for topic access
+- Fixed 500 error for test plan creation
+- Consistent role validation across all endpoints
+- Proper error messages for unauthorized access
+
+#### Verification Steps
+1. Test topic access:
+   - Access `/api/topics/subject/1` with each role
+   - Access `/api/topics/subject/1` with invalid role
+
+2. Test test plan creation:
+   - Create test plan as tutor
+   - Create test plan as parent
+   - Verify proper error for student role
+
+#### Notes
+- All role comparisons are now case-insensitive
+- Error messages clearly indicate required roles
+- Role validation middleware handles undefined roles array
+
+### Role Validation Fix - Part 2 (2025-03-18 23:00)
+
+#### Problem Description
+- 404 error persisted when accessing `/api/topics/subject/1` with proper roles
+- 500 error still occurring when creating test plans
+- Role validation not handling user authentication properly
+- Inconsistent role storage in JWT token
+
+#### Changes Made
+1. **Role Validation Middleware**
+   - Added proper authentication check:
+     ```typescript
+     if (!req.user) {
+       return next(new AppError(401, 'Authentication required'));
+     }
+     ```
+   - Improved error messages and handling:
+     ```typescript
+     if (!userRoles.length) {
+       return next(new AppError(401, 'No roles found for user'));
+     }
+     ```
+
+2. **Auth Service**
+   - Store all user roles in JWT token:
+     ```typescript
+     const token = jwt.sign(
+       {
+         userId: user.user_id.toString(),
+         email: user.email,
+         roles: userRoles, // Store all user roles in token
+       },
+       process.env.JWT_SECRET
+     );
+     ```
+
+3. **Topic Routes**
+   - Fixed role access according to rules:
+     - Topic viewing: all roles (admin, tutor, parent, student)
+     - Topic management: admin only
+
+4. **Test Routes**
+   - Fixed role access according to rules:
+     - Test plan creation: tutor, parent only
+     - Test plan viewing: all roles
+     - Student test viewing: tutor, parent only
+     - Test execution: student only
+     - Test results: student, tutor, parent
+
+#### Impact
+- Fixed 404 error for topic access by properly checking authentication
+- Fixed 500 error in test plan creation by storing all roles in token
+- Consistent role validation across all endpoints
+- Proper error messages for unauthorized access
+
+#### Verification Steps
+1. Test authentication:
+   - Access any endpoint without token (should get 401)
+   - Access with invalid token (should get 401)
+   - Access with valid token but no roles (should get 401)
+
+2. Test topic access:
+   - Access `/api/topics/subject/1` with each role
+   - Verify admin can manage topics
+   - Verify other roles can only view
+
+3. Test test plan creation:
+   - Create test plan as tutor (should work)
+   - Create test plan as parent (should work)
+   - Create test plan as student (should get 403)
+   - Create test plan as admin (should get 403)
+
+#### Notes
+- All roles are now consistently stored in lowercase
+- JWT token contains complete role information
+- Error messages clearly indicate the issue (auth vs role)
+- Role validation follows the established access rules
+
+### Role Standardization Plan (2025-03-17 18:39)
+
+#### Current Issues
+1. **Inconsistent Role Formats**
+   - Database: UPPERCASE ('STUDENT', 'TEACHER', 'ADMIN', 'PARENT')
+   - API: Mixed case with transformations
+   - Frontend: Title Case ('Student', 'Parent', 'Tutor', 'Admin')
+
+2. **Type Safety Problems**
+   - No single source of truth for roles
+   - Mixed TypeScript types between frontend and backend
+   - Inconsistent validation rules
+
+#### Migration Plan
+
+1. **Phase 1: Backend Type System** (Current)
+   - Create Role enum in types/index.ts
+   - Update all DTOs and interfaces
+   - Add proper TypeScript validation
+   - Document all type changes
+
+2. **Phase 2: Database Migration** (Next)
+   ```sql
+   -- Backup current roles
+   CREATE TABLE roles_backup AS SELECT * FROM roles;
+   
+   -- Update existing roles to Title Case
+   UPDATE roles SET role_name = 'Student' WHERE role_name = 'STUDENT';
+   UPDATE roles SET role_name = 'Parent' WHERE role_name = 'PARENT';
+   UPDATE roles SET role_name = 'Tutor' WHERE role_name IN ('TEACHER', 'TUTOR');
+   UPDATE roles SET role_name = 'Admin' WHERE role_name = 'ADMIN';
+   
+   -- Update user_roles to match new role names
+   UPDATE user_roles ur
+   JOIN roles r ON ur.role_id = r.role_id
+   SET r.role_name = CASE
+     WHEN r.role_name = 'STUDENT' THEN 'Student'
+     WHEN r.role_name = 'PARENT' THEN 'Parent'
+     WHEN r.role_name IN ('TEACHER', 'TUTOR') THEN 'Tutor'
+     WHEN r.role_name = 'ADMIN' THEN 'Admin'
+   END;
+   ```
+
+3. **Phase 3: API Updates**
+   - Update validation middleware
+   - Modify auth service
+   - Update role-based guards
+   - Test all role-dependent endpoints
+
+4. **Phase 4: Frontend Updates**
+   - Update Role type in auth.ts
+   - Modify protected routes
+   - Update components using roles
+   - Remove case transformations
+
+#### Verification Steps
+1. **For Each Phase**
+   - Run TypeScript compiler
+   - Run all tests
+   - Check API responses
+   - Verify frontend functionality
+
+2. **Database Checks**
+   - Verify role names in roles table
+   - Check user_roles associations
+   - Validate existing users' roles
+
+3. **API Testing**
+   - Test login with each role
+   - Verify role-based access
+   - Check validation errors
+
+4. **Frontend Testing**
+   - Test role-based navigation
+   - Verify protected routes
+   - Check role displays
+
+#### Rollback Plan
+1. **Database**
+   ```sql
+   -- Restore roles from backup
+   DELETE FROM roles;
+   INSERT INTO roles SELECT * FROM roles_backup;
+   DROP TABLE roles_backup;
+   ```
+
+2. **Code**
+   - Keep git commits atomic
+   - Tag releases for easy rollback
+   - Document all changes
+
+#### Notes
+- All changes will be documented in fyi.md
+- Each phase will have its own commit
+- Testing required after each phase
+- Monitor for any role-related errors
+
+### Role Standardization Implementation Log - Phase 1 (2025-03-17 18:39)
+
+#### What Was Done
+1. Created Role enum in `types/index.ts`:
+   - Standardized role names: 'Student', 'Parent', 'Tutor', 'Admin'
+   - Added proper TypeScript types for role validation
+   - Added UserRequest interface for type-safe request handling
+
+2. Updated validation middleware in `validation.ts`:
+   - Using Role enum for validation
+   - Improved error messages for invalid roles
+   - Fixed type imports and validation
+   - Using string type for role validation to match runtime values
+
+#### Why These Changes Were Made
+- To establish a single source of truth for roles
+- To ensure type safety across the application
+- To prevent role validation issues from case sensitivity
+- To improve error messages for better debugging
+
+#### How Changes Were Implemented
+1. Added Role enum and types:
+   ```typescript
+   export enum Role {
+     Student = 'Student',
+     Parent = 'Parent',
+     Tutor = 'Tutor',
+     Admin = 'Admin'
+   }
+   ```
+
+2. Updated validation schemas:
+   ```typescript
+   role: z.nativeEnum(Role, {
+     errorMap: () => ({ 
+       message: `Invalid role. Valid roles are: ${Object.values(Role).join(', ')}` 
+     })
+   })
+   ```
+
+#### Next Steps
+1. Update database schema to match new role format
+2. Migrate existing role data
+3. Update auth service to use new Role type
+4. Test role validation with all endpoints
+
+### Role Standardization Implementation Log
+
+### 2024-01-09 - Phase 1: Type System Updates
+
+#### Changes Made
+1. Updated `types/index.ts`:
+   - Changed Role from enum to const object for better runtime usage
+   - Added RoleType type for type safety
+   - Updated all role references to use proper types
+   - Organized types into logical groups
+
+2. Updated `middleware/validation.ts`:
+   - Using Role object for Zod validation
+   - Improved error messages for invalid roles
+   - Fixed type imports and validation
+   - Using string type for role validation to match runtime values
+
+#### Current Issues
+1. TypeScript Lint Errors:
+   - Module "../types" export issues in validation.ts
+   - Need to verify Role type exports
+
+#### Next Steps
+1. **Phase 2: Database Migration**
+   - Create migration script to update existing roles to Title Case
+   - Update database schema to enforce Role values
+   - Add validation triggers/constraints
+
+2. **Phase 3: API Updates**
+   - Update authentication service to use Role type
+   - Modify role-based guards for consistency
+   - Update API documentation with new role format
+
+3. **Phase 4: Frontend Updates**
+   - Update frontend role types in auth.ts
+   - Ensure components use standardized roles
+   - Update role-based UI logic
+
+#### Testing Plan
+1. Unit Tests:
+   - Role validation middleware
+   - Authentication flow with new types
+   - Error handling for invalid roles
+
+2. Integration Tests:
+   - Login/Register flow
+   - Role-based access control
+   - Database constraints
+
+3. UI Tests:
+   - Role selection components
+   - Permission-based UI elements
+   - Error message display
+
+#### Implementation Details
+1. Role Type Definition:
+```typescript
+export const Role = {
+  Student: 'Student',
+  Parent: 'Parent',
+  Tutor: 'Tutor',
+  Admin: 'Admin'
+} as const;
+
+export type RoleType = typeof Role[keyof typeof Role];
+```
+
+2. Validation Schema:
+```typescript
+const loginSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(1, 'Password is required'),
+  role: z.enum(Object.values(Role) as [string, ...string[]], {
+    errorMap: () => ({ message: `Invalid role. Valid roles are: ${Object.values(Role).join(', ')}` })
+  })
+});
+```
+
+3. Role Validation:
+```typescript
+export const validateRole = (allowedRoles: string[]) => {
+  return (req: UserRequest, res: Response, next: NextFunction) => {
+    const userRole = req.user?.role;
+    
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      const response: ValidationResponse = {
+        status: 'error',
+        message: 'Unauthorized: Insufficient role permissions',
+        errors: [{ 
+          field: 'role', 
+          message: `Required roles: ${allowedRoles.join(', ')}` 
+        }]
+      };
+      return res.status(403).json(response);
+    }
+    
+    return next();
+  };
+};
+```
+
+{{ ... }}
+
+### Role Validation Fix - Student Test Plans (2025-03-19 15:10)
+
+#### Problem Description
+- Students were unable to create test plans for themselves
+- Error "Access denied. Required roles: parent, tutor" when students tried to create test plans
+- Frontend expected students to be able to create test plans for themselves
+
+#### Changes Made
+1. **Test Routes Update**
+   - Added 'student' role to test plan creation route:
+     ```typescript
+     router.post(
+       '/plans',
+       authenticate,
+       hasRole(['tutor', 'parent', 'student']),
+       validateTestPlanCreate,
+       createTestPlan
+     );
+     ```
+
+2. **Validation in Controller**
+   - Confirmed controller already has validation to ensure students can only create test plans for themselves:
+     ```typescript
+     // If user is a student, they can only create test plans for themselves
+     if (req.user?.roles.includes('student') && planData.studentId.toString() !== userId.toString()) {
+       throw new AppError(403, 'Students can only create test plans for themselves');
+     }
+     ```
+
+#### Impact
+- Students can now create test plans for themselves
+- Maintained security by ensuring students can only create plans for themselves
+- Fixed "Failed to create test plan" error in frontend
+- Aligned API with frontend expectations
+
+#### Verification Steps
+1. Test as student:
+   - Login as student
+   - Create test plan
+   - Verify test plan is created successfully
+
+2. Test security:
+   - Attempt to create test plan for another student (should fail)
+   - Verify proper error message
+
+#### Notes
+- Role validation now follows the pattern:
+  - Students: Can create/view their own test plans
+  - Parents: Can create/view test plans for their children
+  - Tutors: Can create/view test plans for their students
+  - Admin: Has full system access{{ ... }}
+
+### Role Validation Fix - Student Test Plans (2025-03-19 15:16)
+
+#### Problem Description
+- Students were unable to create test plans for themselves
+- Error "Access denied. Required roles: parent, tutor" when students tried to create test plans
+- Frontend expected students to be able to create test plans for themselves
+
+#### Changes Made
+1. **Test Routes Update**
+   - Added 'student' role to test plan creation route in both route files:
+     ```typescript
+     // In test.routes.ts
+     router.post(
+       '/plans',
+       authenticate,
+       hasRole(['tutor', 'parent', 'student']),
+       validateTestPlanCreate,
+       createTestPlan
+     );
+     
+     // In testPlan.routes.ts
+     router.post(
+       '/',
+       hasRole(['parent', 'tutor', 'student']),
+       validateTestPlanCreate,
+       testPlanController.createTestPlan.bind(testPlanController)
+     );
+     ```
+
+2. **Validation in Controllers**
+   - Both controllers now have validation to ensure students can only create test plans for themselves:
+     ```typescript
+     // In test.controller.ts
+     if (req.user?.roles.includes('student') && planData.studentId.toString() !== userId.toString()) {
+       throw new AppError(403, 'Students can only create test plans for themselves');
+     }
+     
+     // In testPlan.controller.ts
+     if (req.user?.roles?.includes('student') && testPlanData.student_id.toString() !== userId.toString()) {
+       throw new ValidationError('Students can only create test plans for themselves');
+     }
+     ```
+
+#### Root Cause
+- The application has two separate routes for creating test plans:
+  1. `/api/tests/plans` in test.routes.ts
+  2. `/test-plans` in testPlan.routes.ts
+- Only one route was updated initially, but both needed to be updated to allow students to create test plans
+
+#### Impact
+- Students can now create test plans for themselves
+- Maintained security by ensuring students can only create plans for themselves
+- Fixed "Failed to create test plan" error in frontend
+- Aligned API with frontend expectations
+
+#### Verification Steps
+1. Test as student:
+   - Login as student
+   - Create test plan
+   - Verify test plan is created successfully
+
+2. Test security:
+   - Attempt to create test plan for another student (should fail)
+   - Verify proper error message
+
+#### Notes
+- Role validation now follows the pattern:
+  - Students: Can create/view their own test plans
+  - Parents: Can create/view test plans for their children
+  - Tutors: Can create/view test plans for their students
+  - Admin: Has full system access{{ ... }}

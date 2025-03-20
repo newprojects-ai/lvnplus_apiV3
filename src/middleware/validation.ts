@@ -1,38 +1,70 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import type { Role, UserRequest, ValidationResponse } from '../types';
+import { AppError } from '../utils/error';
+import { test_plans_test_type, test_plans_timing_type } from '@prisma/client';
 
 // Valid roles for validation
-const validRoles: Role[] = ['admin', 'tutor', 'parent', 'student'];
+const validRoles = ['admin', 'tutor', 'parent', 'student'];
 
 // Helper functions
 export const normalizeRole = (role: string): string => role.toLowerCase();
-export const isValidRole = (role: string): boolean => validRoles.includes(role as Role);
+export const isValidRole = (role: string): boolean => validRoles.includes(normalizeRole(role));
 
 // Role validation middleware
-export const hasRole = (allowedRoles: Role[]) => {
-  return (req: UserRequest, res: Response, next: NextFunction) => {
-    const userRole = req.user?.role;
-    if (!userRole) {
-      return res.status(401).json({
-        success: false,
-        message: 'User role not found'
-      });
-    }
+export const hasRole = (allowedRoles: string[]) => {
+  return (req: any, _: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return next(new AppError(401, 'Authentication required'));
+      }
 
-    const normalizedRole = normalizeRole(userRole);
-    if (!allowedRoles.includes(normalizedRole as Role)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Insufficient permissions',
-        errors: [{
-          field: 'role',
-          message: `Required roles: ${allowedRoles.join(', ')}`
-        }]
-      });
-    }
+      const userRoles = req.user.roles?.map((r: string) => normalizeRole(r)) || [];
+      
+      if (!userRoles.length) {
+        return next(new AppError(401, 'No roles found for user'));
+      }
 
-    return next();
+      const normalizedAllowedRoles = allowedRoles.map(normalizeRole);
+      const hasRequiredRole = userRoles.some((role: string) => normalizedAllowedRoles.includes(role));
+
+      if (!hasRequiredRole) {
+        return next(new AppError(403, `Access denied. Required roles: ${allowedRoles.join(', ')}`));
+      }
+
+      next();
+    } catch (error) {
+      console.error('Role validation error:', error);
+      next(new AppError(500, 'Role validation failed'));
+    }
+  };
+};
+
+// Multiple roles validation middleware
+export const hasAnyRole = (allowedRoles: string[]) => {
+  return (req: any, _: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        return next(new AppError(401, 'Authentication required'));
+      }
+
+      const userRoles = req.user.roles?.map((r: string) => normalizeRole(r)) || [];
+      
+      if (!userRoles.length) {
+        return next(new AppError(401, 'No roles found for user'));
+      }
+
+      const normalizedAllowedRoles = allowedRoles.map(normalizeRole);
+      const hasAllowedRole = userRoles.some((role: string) => normalizedAllowedRoles.includes(role));
+      
+      if (!hasAllowedRole) {
+        return next(new AppError(403, `Access denied. Required one of roles: ${allowedRoles.join(', ')}`));
+      }
+      
+      next();
+    } catch (error) {
+      console.error('Role validation error:', error);
+      next(new AppError(500, 'Role validation failed'));
+    }
   };
 };
 
@@ -81,10 +113,18 @@ const templateUpdateSchema = z.object({
 
 // Test plan validation schemas
 const testPlanCreateSchema = z.object({
-  template_id: z.union([z.string(), z.number()]).transform(val => BigInt(val)),
-  student_id: z.union([z.string(), z.number()]).transform(val => BigInt(val)),
-  scheduled_for: z.string().datetime().optional(),
-  description: z.string().optional()
+  studentId: z.union([z.string(), z.number()]).transform(val => BigInt(val)),
+  boardId: z.number().positive('Board ID must be a positive number'),
+  testType: z.nativeEnum(test_plans_test_type),
+  timingType: z.nativeEnum(test_plans_timing_type),
+  timeLimit: z.number().min(0, 'Time limit must be non-negative').optional(),
+  templateId: z.union([z.string(), z.number()]).optional(),
+  configuration: z.object({
+    topics: z.array(z.number()).optional(),
+    subtopics: z.array(z.number()).optional(),
+    totalQuestionCount: z.number().min(1, 'Must have at least one question'),
+    difficulty: z.enum(['ALL', 'EASY', 'MEDIUM', 'HARD']).optional()
+  }).optional()
 });
 
 const testPlanUpdateSchema = z.object({
@@ -181,23 +221,16 @@ const tutorGroupCreateSchema = z.object({
 
 // Generic request validator
 export const validateRequest = <T extends z.ZodType>(schema: T) => {
-  return async (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, _: Response, next: NextFunction) => {
     try {
-      await schema.parseAsync(req.body);
-      return next();
+      schema.parse(req.body);
+      next();
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const validationResponse: ValidationResponse = {
-          success: false,
-          message: 'Validation failed',
-          errors: error.errors.map(err => ({
-            field: err.path.join('.'),
-            message: err.message
-          }))
-        };
-        return res.status(400).json(validationResponse);
+        next(new AppError(400, error.errors[0].message));
+      } else {
+        next(error);
       }
-      return next(error);
     }
   };
 };
@@ -223,28 +256,44 @@ const registerSchema = z.object({
   )
 });
 
-// Export validation middlewares
-export const validateLogin = validateRequest(loginSchema);
-export const validateRegister = validateRequest(registerSchema);
+// Export validation middleware functions
 export const validateTopicCreation = validateRequest(topicCreateSchema);
 export const validateTopicUpdate = validateRequest(topicUpdateSchema);
-export const validateTemplateCreation = validateRequest(templateCreateSchema);
-export const validateTemplateUpdate = validateRequest(templateUpdateSchema);
-export const validateTestPlanCreate = validateRequest(testPlanCreateSchema);
-export const validateTestPlanUpdate = validateRequest(testPlanUpdateSchema);
-export const validateGuardianLink = validateRequest(guardianLinkSchema);
-export const validateGuardianConfirm = validateRequest(guardianConfirmSchema);
-export const validateSubjectCreation = validateRequest(subjectCreateSchema);
-export const validateSubjectUpdate = validateRequest(subjectUpdateSchema);
 export const validateSubtopicCreation = validateRequest(subtopicCreateSchema);
 export const validateSubtopicUpdate = validateRequest(subtopicUpdateSchema);
+export const validateTemplateCreation = validateRequest(templateCreateSchema);
+export const validateTemplateUpdate = validateRequest(templateUpdateSchema);
+export const validateTestPlanCreate = async (
+  req: Request,
+  _: Response,
+  next: NextFunction
+) => {
+  try {
+    const validatedData = await testPlanCreateSchema.parseAsync(req.body);
+    req.body = validatedData;
+    next();
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      next(new AppError(400, error.errors[0].message));
+      return;
+    }
+    next(error);
+  }
+};
+export const validateTestPlanUpdate = validateRequest(testPlanUpdateSchema);
 export const validateQuestionCreate = validateRequest(questionCreateSchema);
 export const validateQuestionUpdate = validateRequest(questionUpdateSchema);
 export const validateBulkQuestionCreate = validateRequest(bulkQuestionCreateSchema);
+export const validateGuardianLink = validateRequest(guardianLinkSchema);
+export const validateGuardianConfirm = validateRequest(guardianConfirmSchema);
 export const validateAdminGuardianLink = validateRequest(adminGuardianLinkSchema);
 export const validateAdminTutorLink = validateRequest(adminTutorLinkSchema);
 export const validateAdminBulkTutorLink = validateRequest(adminBulkTutorLinkSchema);
 export const validateTutorLink = validateRequest(tutorLinkSchema);
+export const validateLogin = validateRequest(loginSchema);
+export const validateRegister = validateRequest(registerSchema);
+export const validateSubjectCreation = validateRequest(subjectCreateSchema);
+export const validateSubjectUpdate = validateRequest(subjectUpdateSchema);
 export const validateTutorGroupCreate = validateRequest(tutorGroupCreateSchema);
 
 // Export schemas for reuse

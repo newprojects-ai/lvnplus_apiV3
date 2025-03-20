@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
-import { NotFoundError, UnauthorizedError, ValidationError } from '../utils/errors';
-import { CreateTestPlanDTO, UpdateTestPlanDTO, TestPlanResponse } from '../types/index';
+import { PrismaClient, test_plans_test_type, test_plans_timing_type, Prisma } from '@prisma/client';
+import { NotFoundError, ValidationError, UnauthorizedError } from '../utils/errors';
+import type { CreateTestPlanDTO, TestPlanResponse, UpdateTestPlanDTO } from '../types/testPlan.types';
+import { TestType, TimingType, TestStatus } from '../types/enums.types';
 
 const prisma = new PrismaClient();
 
@@ -9,47 +10,67 @@ export class TestPlanService {
     plannerId: string,
     data: CreateTestPlanDTO
   ): Promise<TestPlanResponse> {
-    // Validate student_id is provided
-    if (!data.student_id) {
-      throw new ValidationError('A student must be assigned to the test plan');
-    }
-
-    // Convert IDs to safe BigInt values
-    const safePlannerId = BigInt(plannerId);
-    const safeStudentId = BigInt(data.student_id);
-    const safeTemplateId = BigInt(data.template_id);
-
-    // Get template info for board_id and test types
-    const template = await prisma.test_templates.findUnique({
-      where: { template_id: Number(safeTemplateId) }
-    });
-
-    if (!template) {
-      throw new ValidationError('Template not found');
-    }
-
-    // Create test plan in the database
-    const testPlan = await prisma.test_plans.create({
-      data: {
-        template_id: Number(safeTemplateId),
-        board_id: template.board_id,
-        test_type: template.test_type,
-        timing_type: template.timing_type,
-        time_limit: template.time_limit,
-        student_id: Number(safeStudentId),
-        planned_by: Number(safePlannerId),
-        planned_at: new Date(),
-        configuration: template.configuration
-      },
-      include: {
-        student: true,
-        planner: true,
-        test_templates: true,
-        exam_boards: true
+    try {
+      // Validate required fields
+      if (!data.studentId) {
+        throw new ValidationError('A student must be assigned to the test plan');
       }
-    });
 
-    return this.formatTestPlanResponse(testPlan);
+      // Convert IDs to safe numbers
+      const safePlannerId = Number(plannerId);
+      const safeStudentId = Number(data.studentId);
+      const boardId = Number(data.boardId);
+      const templateId = data.templateId ? Number(data.templateId) : null;
+      
+      // Create test plan in the database
+      const testPlan = await prisma.test_plans.create({
+        data: {
+          board_id: boardId,
+          test_type: data.testType.toUpperCase() as test_plans_test_type,
+          timing_type: data.timingType.toUpperCase() as test_plans_timing_type,
+          time_limit: data.timeLimit,
+          student_id: safeStudentId,
+          planned_by: safePlannerId,
+          planned_at: new Date(),
+          configuration: JSON.stringify(data.configuration),
+          template_id: templateId
+        },
+        include: {
+          student: {
+            select: {
+              user_id: true,
+              email: true,
+              first_name: true,
+              last_name: true
+            }
+          },
+          planner: {
+            select: {
+              user_id: true,
+              email: true,
+              first_name: true,
+              last_name: true
+            }
+          },
+          test_templates: true,
+          exam_boards: true,
+          test_executions: {
+            take: 1,
+            orderBy: {
+              started_at: 'desc'
+            }
+          }
+        }
+      });
+
+      return this.formatTestPlanResponse(testPlan);
+    } catch (error) {
+      console.error('Error creating test plan:', error);
+      if (error instanceof ValidationError) {
+        throw error;
+      }
+      throw new Error('Failed to create test plan');
+    }
   }
 
   async getTestPlans(filters: {
@@ -57,64 +78,115 @@ export class TestPlanService {
     studentId?: string;
     status?: string;
   }): Promise<TestPlanResponse[]> {
-    const safeUserId = BigInt(filters.userId);
+    try {
+      const safeUserId = Number(filters.userId);
+      const safeStudentId = filters.studentId ? Number(filters.studentId) : undefined;
 
-    // Build where clause based on filters
-    const whereClause: any = {
-      OR: [
-        { planned_by: Number(safeUserId) },
-        { student_id: Number(safeUserId) }
-      ]
-    };
+      // Build where clause based on filters
+      const whereClause: any = {
+        OR: [
+          { planned_by: safeUserId },
+          { student_id: safeUserId }
+        ]
+      };
 
-    if (filters.studentId) {
-      whereClause.student_id = Number(BigInt(filters.studentId));
-    }
-
-    const testPlans = await prisma.test_plans.findMany({
-      where: whereClause,
-      include: {
-        student: true,
-        planner: true,
-        test_templates: true,
-        exam_boards: true
-      },
-      orderBy: {
-        planned_at: 'desc'
+      if (safeStudentId) {
+        whereClause.student_id = safeStudentId;
       }
-    });
 
-    return testPlans.map(plan => this.formatTestPlanResponse(plan));
+      const testPlans = await prisma.test_plans.findMany({
+        where: whereClause,
+        include: {
+          student: {
+            select: {
+              user_id: true,
+              email: true,
+              first_name: true,
+              last_name: true
+            }
+          },
+          planner: {
+            select: {
+              user_id: true,
+              email: true,
+              first_name: true,
+              last_name: true
+            }
+          },
+          test_templates: true,
+          exam_boards: true,
+          test_executions: {
+            take: 1,
+            orderBy: {
+              started_at: 'desc'
+            }
+          }
+        },
+        orderBy: {
+          planned_at: 'desc'
+        }
+      });
+
+      return testPlans.map(plan => this.formatTestPlanResponse(plan));
+    } catch (error) {
+      console.error('Error getting test plans:', error);
+      throw new Error('Failed to get test plans');
+    }
   }
 
   async getTestPlan(
     planId: string,
     userId: string
   ): Promise<TestPlanResponse | null> {
-    const safePlanId = BigInt(planId);
-    const safeUserId = BigInt(userId);
+    try {
+      const safePlanId = Number(planId);
+      const safeUserId = Number(userId);
 
-    const testPlan = await prisma.test_plans.findFirst({
-      where: {
-        test_plan_id: Number(safePlanId),
-        OR: [
-          { planned_by: Number(safeUserId) },
-          { student_id: Number(safeUserId) }
-        ]
-      },
-      include: {
-        student: true,
-        planner: true,
-        test_templates: true,
-        exam_boards: true
+      const testPlan = await prisma.test_plans.findFirst({
+        where: {
+          test_plan_id: safePlanId,
+          OR: [
+            { planned_by: safeUserId },
+            { student_id: safeUserId }
+          ]
+        },
+        include: {
+          student: {
+            select: {
+              user_id: true,
+              email: true,
+              first_name: true,
+              last_name: true
+            }
+          },
+          planner: {
+            select: {
+              user_id: true,
+              email: true,
+              first_name: true,
+              last_name: true
+            }
+          },
+          test_templates: true,
+          exam_boards: true,
+          test_executions: {
+            take: 1,
+            orderBy: {
+              started_at: 'desc'
+            }
+          }
+        }
+      });
+
+      if (!testPlan) {
+        return null;
       }
-    });
 
-    if (!testPlan) {
-      throw new NotFoundError('Test plan not found');
+      return this.formatTestPlanResponse(testPlan);
+    } catch (error) {
+      console.error('Error getting test plan:', error);
+      throw new Error('Failed to get test plan');
     }
-
-    return this.formatTestPlanResponse(testPlan);
   }
 
   async updateTestPlan(
@@ -122,128 +194,170 @@ export class TestPlanService {
     userId: string,
     data: UpdateTestPlanDTO
   ): Promise<TestPlanResponse | null> {
-    const safePlanId = BigInt(planId);
-    const safeUserId = BigInt(userId);
+    try {
+      const safePlanId = Number(planId);
+      const safeUserId = Number(userId);
 
-    // Check if test plan exists and user has access
-    const existingPlan = await prisma.test_plans.findFirst({
-      where: {
-        test_plan_id: Number(safePlanId),
-        OR: [
-          { planned_by: Number(safeUserId) },
-          { student_id: Number(safeUserId) }
-        ]
+      // Check if test plan exists and user has access
+      const existingPlan = await prisma.test_plans.findFirst({
+        where: {
+          test_plan_id: safePlanId,
+          OR: [
+            { planned_by: safeUserId },
+            { student_id: safeUserId }
+          ]
+        }
+      });
+
+      if (!existingPlan) {
+        throw new NotFoundError('Test plan not found');
       }
-    });
 
-    if (!existingPlan) {
-      throw new NotFoundError('Test plan not found');
-    }
+      // Only planner can update the test plan
+      if (Number(existingPlan.planned_by) !== safeUserId) {
+        throw new UnauthorizedError('Only the planner can update the test plan');
+      }
 
-    // Only planner can update the test plan
-    if (Number(existingPlan.planned_by) !== Number(safeUserId)) {
-      throw new UnauthorizedError('Only the planner can update the test plan');
-    }
+      // Parse existing configuration
+      const existingConfig = JSON.parse(existingPlan.configuration as string);
 
-    // Update test plan
-    const testPlan = await prisma.test_plans.update({
-      where: {
-        test_plan_id: Number(safePlanId)
-      },
-      data: {
-        planned_at: data.scheduled_for ? new Date(data.scheduled_for) : undefined,
+      // Prepare update data
+      const updateData: Prisma.test_plansUpdateInput = {
         configuration: JSON.stringify({
-          ...JSON.parse(existingPlan.configuration),
+          ...existingConfig,
           description: data.description
         })
-      },
-      include: {
-        student: true,
-        planner: true,
-        test_templates: true,
-        exam_boards: true
-      }
-    });
+      };
 
-    return this.formatTestPlanResponse(testPlan);
+      if (data.scheduled_for) {
+        updateData.planned_at = new Date(data.scheduled_for);
+      }
+
+      const testPlan = await prisma.test_plans.update({
+        where: {
+          test_plan_id: safePlanId
+        },
+        data: updateData,
+        include: {
+          student: {
+            select: {
+              user_id: true,
+              email: true,
+              first_name: true,
+              last_name: true
+            }
+          },
+          planner: {
+            select: {
+              user_id: true,
+              email: true,
+              first_name: true,
+              last_name: true
+            }
+          },
+          test_templates: true,
+          exam_boards: true,
+          test_executions: {
+            take: 1,
+            orderBy: {
+              started_at: 'desc'
+            }
+          }
+        }
+      });
+
+      return this.formatTestPlanResponse(testPlan);
+    } catch (error) {
+      console.error('Error updating test plan:', error);
+      if (error instanceof NotFoundError || error instanceof UnauthorizedError) {
+        throw error;
+      }
+      throw new Error('Failed to update test plan');
+    }
   }
 
   async deleteTestPlan(
     planId: string,
     userId: string
   ): Promise<void> {
-    const safePlanId = BigInt(planId);
-    const safeUserId = BigInt(userId);
+    try {
+      const safePlanId = Number(planId);
+      const safeUserId = Number(userId);
 
-    // Check if test plan exists and user has access
-    const existingPlan = await prisma.test_plans.findFirst({
-      where: {
-        test_plan_id: Number(safePlanId),
-        OR: [
-          { planned_by: Number(safeUserId) },
-          { student_id: Number(safeUserId) }
-        ]
+      // Check if test plan exists and user has access
+      const existingPlan = await prisma.test_plans.findFirst({
+        where: {
+          test_plan_id: safePlanId,
+          OR: [
+            { planned_by: safeUserId },
+            { student_id: safeUserId }
+          ]
+        }
+      });
+
+      if (!existingPlan) {
+        throw new NotFoundError('Test plan not found');
       }
-    });
 
-    if (!existingPlan) {
-      throw new NotFoundError('Test plan not found');
-    }
-
-    // Only planner can delete the test plan
-    if (Number(existingPlan.planned_by) !== Number(safeUserId)) {
-      throw new UnauthorizedError('Only the planner can delete the test plan');
-    }
-
-    await prisma.test_plans.delete({
-      where: {
-        test_plan_id: Number(safePlanId)
+      // Only planner can delete the test plan
+      if (Number(existingPlan.planned_by) !== safeUserId) {
+        throw new UnauthorizedError('Only the planner can delete the test plan');
       }
-    });
+
+      await prisma.test_plans.delete({
+        where: {
+          test_plan_id: safePlanId
+        }
+      });
+    } catch (error) {
+      console.error('Error deleting test plan:', error);
+      if (error instanceof NotFoundError || error instanceof UnauthorizedError) {
+        throw error;
+      }
+      throw new Error('Failed to delete test plan');
+    }
   }
 
   private formatTestPlanResponse(testPlan: any): TestPlanResponse {
+    if (!testPlan) {
+      throw new Error('Invalid test plan data');
+    }
+
     try {
-      const configuration = JSON.parse(testPlan.configuration);
+      const config = typeof testPlan.configuration === 'string' 
+        ? JSON.parse(testPlan.configuration)
+        : testPlan.configuration;
+
       return {
         id: testPlan.test_plan_id.toString(),
-        template_id: testPlan.template_id?.toString(),
-        board_id: testPlan.board_id,
-        test_type: testPlan.test_type,
-        timing_type: testPlan.timing_type,
-        time_limit: testPlan.time_limit,
+        templateId: testPlan.template_id?.toString(),
+        boardId: testPlan.board_id,
+        testType: testPlan.test_type.toUpperCase() as TestType,
+        timingType: testPlan.timing_type.toUpperCase() as TimingType,
+        timeLimit: testPlan.time_limit,
         student: {
-          id: testPlan.student.user_id.toString(),
+          userId: testPlan.student.user_id.toString(),
           email: testPlan.student.email,
-          first_name: testPlan.student.first_name,
-          last_name: testPlan.student.last_name
+          firstName: testPlan.student.first_name,
+          lastName: testPlan.student.last_name
         },
         planner: {
-          id: testPlan.planner.user_id.toString(),
+          userId: testPlan.planner.user_id.toString(),
           email: testPlan.planner.email,
-          first_name: testPlan.planner.first_name,
-          last_name: testPlan.planner.last_name
+          firstName: testPlan.planner.first_name,
+          lastName: testPlan.planner.last_name
         },
-        template: testPlan.test_templates ? {
-          id: testPlan.test_templates.template_id.toString(),
-          name: testPlan.test_templates.template_name,
-          source: testPlan.test_templates.source,
-          test_type: testPlan.test_templates.test_type,
-          timing_type: testPlan.test_templates.timing_type,
-          time_limit: testPlan.test_templates.time_limit,
-          configuration: JSON.parse(testPlan.test_templates.configuration)
-        } : undefined,
-        exam_board: testPlan.exam_boards ? {
-          id: testPlan.exam_boards.board_id.toString(),
-          name: testPlan.exam_boards.board_name,
-          description: testPlan.exam_boards.description,
-          input_type: testPlan.exam_boards.input_type
-        } : undefined,
-        planned_at: testPlan.planned_at,
-        configuration
+        configuration: config,
+        execution: testPlan.test_executions?.[0] ? {
+          status: testPlan.test_executions[0].status.toUpperCase() as TestStatus,
+          startedAt: testPlan.test_executions[0].started_at,
+          completedAt: testPlan.test_executions[0].completed_at,
+          score: testPlan.test_executions[0].score
+        } : undefined
       };
     } catch (error) {
-      throw new Error('Failed to parse configuration');
+      console.error('Error formatting test plan response:', error);
+      throw new Error('Failed to format test plan response');
     }
   }
 }
